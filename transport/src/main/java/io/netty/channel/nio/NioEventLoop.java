@@ -778,11 +778,14 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             for (; ; ) {
                 // 获取距离定时任务触发时间的时长 （四舍五入）
                 long timeoutMillis = (selectDeadLineNanos - currentTimeNanos + 500000L) / 1000000L;
+                // 已经触发或超时
                 if (timeoutMillis <= 0) {
+                    // 若之前未执行过select ,则调用非阻塞的selectNow()方法
                     if (selectCnt == 0) {
                         selector.selectNow();
                         selectCnt = 1;
                     }
+                    // 跳出循环，去处理I/O事件和定时任务
                     break;
                 }
 
@@ -790,13 +793,22 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 // Selector#wakeup. So we need to check task queue again before executing select operation.
                 // If we don't, the task might be pended until select operation was timed out.
                 // It might be pended until idle timeout if IdleStateHandler existed in pipeline.
+                /***
+                 * 当任务队列中有任务，且唤醒标志为false时，需要调用selectNow()方法
+                 * 否则任务得不到及时处理，可能需要阻塞等待超时
+                 * 这段判断在Netty之后才加上的，检测到有任务，并未设置唤醒标识
+                 */
                 if (hasTasks() && wakenUp.compareAndSet(false, true)) {
                     selector.selectNow();
                     selectCnt = 1;
                     break;
                 }
 
+                // 阻塞检测就绪的Channel,除非有就绪的Channel
+                // 或者遇到空轮询的问题，或者被其他线程唤醒
+                // 否则只能等待timeoutMillis后自动醒来
                 int selectedKeys = selector.select(timeoutMillis);
+                // 检测次数加1 ，此参数主要用来判断是否有空轮询的
                 selectCnt ++;
 
                 if (selectedKeys != 0 || oldWakenUp || wakenUp.get() || hasTasks() || hasScheduledTasks()) {
