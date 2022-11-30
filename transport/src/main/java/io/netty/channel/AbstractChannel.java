@@ -45,13 +45,16 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
     private final Channel parent;
     private final ChannelId id;
+    // 实现具体的连接与读/写数据，如网络的读/写，链路关闭，发起连接等，命名为Unsafe表示不对外提供使用，并非不安全
     private final Unsafe unsafe;
+    // 一个Handler容器，也可以将其理解为一个Handler链，Handler 主要处理数据的编/解码业务逻辑
     private final DefaultChannelPipeline pipeline;
     private final VoidChannelPromise unsafeVoidPromise = new VoidChannelPromise(this, false);
     private final CloseFuture closeFuture = new CloseFuture(this);
 
     private volatile SocketAddress localAddress;
     private volatile SocketAddress remoteAddress;
+    // 每个Channel 对应一条EventLoop线程
     private volatile EventLoop eventLoop;
     private volatile boolean registered;
     private boolean closeInitiated;
@@ -548,13 +551,16 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
             boolean wasActive = isActive();
             try {
+                // 模板设计模式，调用子类的NioServerSocketChannel的doBind()方法
                 doBind(localAddress);
             } catch (Throwable t) {
+                // 绑定失败回调
                 safeSetFailure(promise, t);
                 closeIfClosed();
                 return;
             }
 
+            // 从非活跃状态到活跃状态触发了active事件
             if (!wasActive && isActive()) {
                 invokeLater(new Runnable() {
                     @Override
@@ -563,7 +569,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                     }
                 });
             }
-
+            // 绑定成功回调通知
             safeSetSuccess(promise);
         }
 

@@ -400,39 +400,52 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     /**
      * Poll all tasks from the task queue and run them via {@link Runnable#run()} method.  This method stops running
      * the tasks in the task queue and returns if it ran longer than {@code timeoutNanos}.
+     *  第二部分，runAllTasks ， 主要目的就是执行taskQueue队列和定时任务的中的任务 ， 如心跳检测，异步写操作等，首先NioEventLoop
+     *  会根据ioRatio（I/O事件与taskQueue运行时间占比）计算任务执行时长，由一个NioEventLoop线程线程需要管理很多的Channel，这些Channel
+     *  的任务可能非常多， 若要执行完， 则I/O事件可能得不到及时处理，因此每执行64个任务后就会检测执行任务的时间是否已经用完 ， 如果执行任务的时间
+     *  用完了， 就不再执行后续的任务了，具体代码解析如下
      */
     protected boolean runAllTasks(long timeoutNanos) {
+        // 从定时任务队列中将达到执行时间的task丢到taskQueue队列中
         fetchFromScheduledTaskQueue();
+        // 从taskQueue队列获取task
         Runnable task = pollTask();
+        // 若task为空
         if (task == null) {
+            // 执行tailTasks中的task，做收尾工作
             afterRunningAllTasks();
             return false;
         }
-
+        // 获取执行截止时间
         final long deadline = ScheduledFutureTask.nanoTime() + timeoutNanos;
+        // 执行任务个数
         long runTasks = 0;
+        // 运行task的最后时间
         long lastExecutionTime;
         for (;;) {
+            // 运行task的run()方法
             safeExecute(task);
 
             runTasks ++;
-
+            //
             // Check timeout every 64 tasks because nanoTime() is relatively expensive.
             // XXX: Hard-coded value - will make it configurable if it is really a problem.
+            // 运行64个任务就进行一次是否达到截止时间检查
             if ((runTasks & 0x3F) == 0) {
                 lastExecutionTime = ScheduledFutureTask.nanoTime();
                 if (lastExecutionTime >= deadline) {
                     break;
                 }
             }
-
+            // 再从taskQueue队列中获取task
             task = pollTask();
+            // 若没有task了，则更新最后执行时间，并跳出循环
             if (task == null) {
                 lastExecutionTime = ScheduledFutureTask.nanoTime();
                 break;
             }
         }
-
+        // 收尾工作
         afterRunningAllTasks();
         this.lastExecutionTime = lastExecutionTime;
         return true;

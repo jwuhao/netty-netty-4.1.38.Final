@@ -244,6 +244,32 @@ import java.nio.charset.UnsupportedCharsetException;
  *
  * Please refer to {@link ByteBufInputStream} and
  * {@link ByteBufOutputStream}.
+ *
+ * 在网络传输中，字节是基本单位，NIO使用ByteBuffer作为Byte字 节容器，但是其使用过于复杂。因此Netty写了一套Channel，代替了 NIO的Channel。
+ * Netty缓冲区又采用了一套ByteBuf代替了NIO的 ByteBuffer。Netty的ByteBuf子类非常多，这里只对核心的ByteBuf进 行详细的剖析。
+ * 图4-6展示了ByteBuf的主要特性，图中列出的类是本 节重点剖析的类。图4-6中的前3个特性对NIO ByteBuffer的缺点进行 了改进。
+ * 图4-6
+ *
+ *
+ *               |-------> 读/写索引分开----> AbstractByteBuf
+ *               |-------> 读/写模式切换时不需要调用flip--------> AbstractByteBuf
+ *               |-------> 自动扩容------------> AbstractByteBuf
+ *  ByteBuf----->|-------> 引用计数循环利用------> AbstractReferenceCountedByteBuf
+ *               |                                                |-----> PooledDirectByteBuf
+ *               |-------> 内存池 ------------> PooledByteBuf<T>-->|-----> PooledHeapByteBuf
+ *               |-------> 组合缓冲区视图-零拷贝----> CompositeByteBuf
+ *               |                                                        |---> PooledDuplicatedByteBuf
+ *               |-------> 派生ByteBuf--->AbstractPooledDerivedByteBuf---> |---> PooledSlicedByteBuf
+ *
+ * NIO ByteBuffer只有一个位置指针position，在切换读/写状态 时，需要手动调用flip()方法或rewind()方法，以改变position的 值，
+ * 而且ByteBuffer的长度是固定的，一旦分配完成就不能再进行扩 容和收缩，当需要放入或存储的对象大于ByteBuffer的容量时会发生 异常。每次编码时都要进行可写空间校验。
+ *
+ *
+ * Netty的AbstractByteBuf将读/写指针分离，同时在写操作时进行 了自动扩容。对其使用而言，无须关心底层实现，且操作简便、代码 无冗余。
+ * NIO ByteBuffer的duplicate()方法可以复制对象，复制后的对象 与原对象共享缓冲区的内存，但其位置指针独立维护。Netty的 ByteBuf也采用了这功能，
+ * 并设计了内存池。内存池是由一定大小和数 量的内存块ByteBuf组成的，这些内存块的大小默认为16MB。当从 Channel中读取数据时，无须每次都分配新的ByteBuf，
+ * 只需从大的内 存块中共享一份内存，并初始化其大小及独立维护读/写指针即可。 Netty采用对象引用计数，需要手动回收。每复制一份ByteBuf或派生 出新的ByteBuf，其引用值都需要增加。
+ *
  */
 public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
 
@@ -2459,6 +2485,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * against using the buffer after it was released (best-effort).
      */
     boolean isAccessible() {
+        // 引用是否大于 0
         return refCnt() != 0;
     }
 }

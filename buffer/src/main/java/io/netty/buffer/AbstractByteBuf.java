@@ -42,6 +42,25 @@ import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
 
 /**
  * A skeletal implementation of a buffer.
+ *
+ * AbstractByteBuf是ByteBuf的子类，它定义了一些公共属性，如 读索引、写索引、mark、最大容量等。AbstractByteBuf实现了一套
+ * 读/写操作的模板方法，其缓冲区真正的数据读/写由其子类完成。图 4-7展示了AbstractByteBuf的核心功能，接下来对其核心功的源码进 行剖析。
+ *
+ *                                  |------> 读/写索引
+ *                          |------>|------> 标记读/写索引
+ *                          |        |------>最大容量
+ *                          |
+ *                          |               |------> writeBytes
+ *                          |------> 写---->|------> ensureWritable
+ *                          |               |------> setBytes
+ *                          |
+ *                          |               |------>readBytes
+ *   AbstractByteBuf------> |------> 读---->|------>getBytes
+ *                          |
+ *                          |
+ *                          |------> 丢弃已读数据--- |---------->discardReadBytes
+ *                                                  |----------> adjustMarkers
+ *
  */
 public abstract class AbstractByteBuf extends ByteBuf {
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(AbstractByteBuf.class);
@@ -67,10 +86,18 @@ public abstract class AbstractByteBuf extends ByteBuf {
     static final ResourceLeakDetector<ByteBuf> leakDetector =
             ResourceLeakDetectorFactory.instance().newResourceLeakDetector(ByteBuf.class);
 
-    int readerIndex;
-    int writerIndex;
+    int readerIndex;                //读索引
+    int writerIndex;                // 写索引
+    /**
+     * 标记读索引
+     * 解码时，由于消息不完整，无法处理
+     * 需要将readerIndex复位
+     * 此时需要先为索引做个标记
+     */
     private int markedReaderIndex;
+    // 标记写索引
     private int markedWriterIndex;
+    // 最大容量
     private int maxCapacity;
 
     protected AbstractByteBuf(int maxCapacity) {
@@ -276,11 +303,20 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     final void ensureWritable0(int minWritableBytes) {
+        // 获取ByteBuf对象的引用计数
+        // 如果返回值为零，则说明该对象被销毁，会抛出异常
         ensureAccessible();
+        // 若可写字节数大于 minWritableBytes,则无须扩容
         if (minWritableBytes <= writableBytes()) {
             return;
         }
+        // 获取写索引
         final int writerIndex = writerIndex();
+        /**
+         *  checkBounds
+         *  判断将要写入的字节数是否大于最大可写字节数（maxCapacity - writerIndex）
+         *  如果大于则直接抛出异常， 否则继续执行
+         */
         if (checkBounds) {
             if (minWritableBytes > maxCapacity - writerIndex) {
                 throw new IndexOutOfBoundsException(String.format(
@@ -290,16 +326,23 @@ public abstract class AbstractByteBuf extends ByteBuf {
         }
 
         // Normalize the current capacity to the power of 2.
+        // 最小容量
         int minNewCapacity = writerIndex + minWritableBytes;
+        // 计算自动扩容后的容量，需要满足最小容量，必须是2的幂数
         int newCapacity = alloc().calculateNewCapacity(minNewCapacity, maxCapacity);
 
+        /**
+         * maxFastWritableBytes 返回不用复制和重新分配内存的最快， 最大可写字节数，默认等于writeableBytes
+         */
         int fastCapacity = writerIndex + maxFastWritableBytes();
+        // 减少重新分配内存
         // Grow by a smaller amount if it will avoid reallocation
         if (newCapacity > fastCapacity && minNewCapacity <= fastCapacity) {
             newCapacity = fastCapacity;
         }
 
         // Adjust to the new capacity.
+        // 由子类将容量调整到新容量值
         capacity(newCapacity);
     }
 
@@ -1107,9 +1150,14 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
+    // AbstractByteBuf的写操作writeBytes()方法涉及扩容，在扩容时 除了合法校验，还需要计算新的容量值，若内存大小为2的整数次幂，
+    // 则AbstractByteBuf的子类比较好分配内存，因此扩容后的大小必须是 2的整数次幂，计算逻辑复杂
     public ByteBuf writeBytes(ByteBuf src, int srcIndex, int length) {
+        // 确保可写，当容量不足时自动扩容
         ensureWritable(length);
+        // 缓冲区真正的写操作由子类实现
         setBytes(writerIndex, src, srcIndex, length);
+        // 调整写索引
         writerIndex += length;
         return this;
     }

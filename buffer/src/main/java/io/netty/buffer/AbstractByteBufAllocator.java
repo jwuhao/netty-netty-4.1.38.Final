@@ -248,13 +248,27 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
     }
 
     @Override
+    /**
+     *  当threshold小于阈值（4MB）时，新的容量（newCapacity）都以64为基数向左移位计算出来的通过循环，每次移动1位，直到newCapacity>=minNewCapacity
+     *  如果计算出来newCapacity大于maxCapacity,则返回maxCapacity
+     *  否则返回newCapacity
+     *  当minNewCapacity>=阀值(4MB)时
+     *  先计算 minNewCapacity/threshold*threshold的大小
+     *  如果这个值加上一个threshold(4MB)大于newCapacity
+     *  则newCapacity的值取maxCapacity;
+     *  否则newCapacity=minNewCapacity/threshold*threshold+threshold
+     *
+     */
     public int calculateNewCapacity(int minNewCapacity, int maxCapacity) {
+        // 检查minNewCapacity是否大于0
         checkPositiveOrZero(minNewCapacity, "minNewCapacity");
+
         if (minNewCapacity > maxCapacity) {
             throw new IllegalArgumentException(String.format(
                     "minNewCapacity: %d (expected: not greater than maxCapacity(%d)",
                     minNewCapacity, maxCapacity));
         }
+        // 阀值为4MB
         final int threshold = CALCULATE_THRESHOLD; // 4 MiB page
 
         if (minNewCapacity == threshold) {
@@ -262,8 +276,17 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
         }
 
         // If over threshold, do not double but just increase by threshold.
+        // 当大于4MB时
         if (minNewCapacity > threshold) {
+            // 先获取离minNewCapacity最近的4MB 的整数倍值，且小于minNewCapacity
             int newCapacity = minNewCapacity / threshold * threshold;
+            /**
+             * 此处新的容量值不会倍增，因为4MB以上的内存比较大
+             * 如果继续倍增，则可能带来额外的内存浪费
+             * 只能在此基础上+4MB , 并判断是否大于maxCapacity
+             * 若大于则返回maxCapacity
+             * 否则返回newCapacity+threshold
+             */
             if (newCapacity > maxCapacity - threshold) {
                 newCapacity = maxCapacity;
             } else {
@@ -273,6 +296,10 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
         }
 
         // Not over threshold. Double up to 4 MiB, starting from 64.
+        /**
+         * 当小于4MB时，以64为基础倍增
+         * 64->128->256... 直到满足最小容量需求，并以此容量值作为新容量值
+         */
         int newCapacity = 64;
         while (newCapacity < minNewCapacity) {
             newCapacity <<= 1;
