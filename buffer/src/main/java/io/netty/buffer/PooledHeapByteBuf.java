@@ -93,6 +93,7 @@ class PooledHeapByteBuf extends PooledByteBuf<byte[]> {
 
     @Override
     public final ByteBuf getBytes(int index, ByteBuf dst, int dstIndex, int length) {
+
         checkDstIndex(index, length, dstIndex, dst.capacity());
         if (dst.hasMemoryAddress()) {
             PlatformDependent.copyMemory(memory, idx(index), dst.memoryAddress() + dstIndex, length);
@@ -106,7 +107,9 @@ class PooledHeapByteBuf extends PooledByteBuf<byte[]> {
 
     @Override
     public final ByteBuf getBytes(int index, byte[] dst, int dstIndex, int length) {
+        // 先检查目标数组的存储空间是够用， 再检查byteBuf的可读内容是否足够
         checkDstIndex(index, length, dstIndex, dst.length);
+        // 将ByteBuf中的内容读取到dst数组中
         System.arraycopy(memory, idx(index), dst, dstIndex, length);
         return this;
     }

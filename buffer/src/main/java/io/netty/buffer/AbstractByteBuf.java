@@ -976,8 +976,13 @@ public abstract class AbstractByteBuf extends ByteBuf {
 
     @Override
     public ByteBuf readBytes(ByteBuf dst, int dstIndex, int length) {
+        // 检测ByteBuf是否可读
+        // 检测其可读长度是否小于length
         checkReadableBytes(length);
+        // 数据的具体读取由子类实现 ， readBytes()方法调用getBytes()方法从当前的读索引开始，将 length个字节复制到目标byte数组中。
+        // 由于不同的子类对应不同的复 制操作，所以AbstractByteBuf类中的getBytes()方法是一个抽象方 法，留给子类来实现。
         getBytes(readerIndex, dst, dstIndex, length);
+        // 修改读索引
         readerIndex += length;
         return this;
     }
