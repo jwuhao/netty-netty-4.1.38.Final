@@ -1829,6 +1829,7 @@ public class CompositeByteBuf extends AbstractReferenceCountedByteBuf implements
 
     /**
      * Discard all {@link ByteBuf}s which are read.
+     * 移除缓冲区中已读字节
      */
     public CompositeByteBuf discardReadComponents() {
         ensureAccessible();
@@ -1839,6 +1840,7 @@ public class CompositeByteBuf extends AbstractReferenceCountedByteBuf implements
 
         // Discard everything if (readerIndex = writerIndex = capacity).
         int writerIndex = writerIndex();
+        // 若读/写索引等于容量，则说明容量已经使用完，全部释放即可
         if (readerIndex == writerIndex && writerIndex == capacity()) {
             for (int i = 0, size = componentCount; i < size; i++) {
                 components[i].free();
@@ -1853,26 +1855,34 @@ public class CompositeByteBuf extends AbstractReferenceCountedByteBuf implements
         // Remove read components.
         int firstComponentId = 0;
         Component c = null;
+        // 从数组第一个元素开始遍历
         for (int size = componentCount; firstComponentId < size; firstComponentId++) {
             c = components[firstComponentId];
+            // 如果结束位置大于读索引，则说明还有buf未读，无须再继续处理，否则需要释放
             if (c.endOffset > readerIndex) {
                 break;
             }
             c.free();
         }
+        // 一个都没有释放
         if (firstComponentId == 0) {
             return this; // Nothing to discard
         }
+        // 最后一次访问时的子Buffer,若元素都被释放了，则黑窝la
         Component la = lastAccessed;
         if (la != null && la.endOffset <= readerIndex) {
             lastAccessed = null;
         }
+        // 从数组中移除已经释放的元素
         removeCompRange(0, firstComponentId);
 
         // Update indexes and markers.
+        // 更新读/写索引
         int offset = c.offset;
+        // 从第一个元素开始更新元素的位置信息
         updateComponentOffsets(0);
         setIndex(readerIndex - offset, writerIndex - offset);
+        // 更新标记索引
         adjustMarkers(offset);
         return this;
     }

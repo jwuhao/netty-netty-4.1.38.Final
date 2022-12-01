@@ -19,6 +19,10 @@ import io.netty.util.Recycler;
 import io.netty.util.Recycler.Handle;
 import io.netty.util.internal.PlatformDependent;
 
+/**
+ * PooledUnsafeHeapByteBuf也会暴露字节数组在Java堆中的地址， 因此不再使用字节数组的索引，即array[index]。同样，Unsafe可通
+ * 过BYTE_ARRAY_BASE_OFFSET+Index字节的地址获取字节。
+ */
 final class PooledUnsafeHeapByteBuf extends PooledHeapByteBuf {
 
     private static final Recycler<PooledUnsafeHeapByteBuf> RECYCLER = new Recycler<PooledUnsafeHeapByteBuf>() {

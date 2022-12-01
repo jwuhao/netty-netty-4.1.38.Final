@@ -74,13 +74,18 @@ public final class ChannelOutboundBuffer {
     // Entry(flushedEntry) --> ... Entry(unflushedEntry) --> ... Entry(tailEntry)
     //
     // The Entry that is the first in the linked-list structure that was flushed
+    // 链表中被刷新的第一个元素，此元素准备第一个写入Socket
     private Entry flushedEntry;
     // The Entry which is the first unflushed in the linked-list structure
+    // 链表中第一个未刷新的元素, 当调用addMessage()方法后， 从原链表tailEntry到Entry （现链表tailEntry）节点都是未被刷新的数据
     private Entry unflushedEntry;
     // The Entry which represents the tail of the buffer
+    // 链表末尾结点
     private Entry tailEntry;
     // The number of flushed entries that are not written yet
+    // 表示已经刷新但还没有写到Socket 中的Entry 的数据
     private int flushed;
+
 
     private int nioBufferCount;
     private long nioBufferSize;
@@ -91,6 +96,7 @@ public final class ChannelOutboundBuffer {
             AtomicLongFieldUpdater.newUpdater(ChannelOutboundBuffer.class, "totalPendingSize");
 
     @SuppressWarnings("UnusedDeclaration")
+    // 通道缓存总数据，用来控制背压， 每新增一个Entry , 其大小要加上Entry实例大小（96B）和真实数据的大小
     private volatile long totalPendingSize;
 
     private static final AtomicIntegerFieldUpdater<ChannelOutboundBuffer> UNWRITABLE_UPDATER =
@@ -108,8 +114,21 @@ public final class ChannelOutboundBuffer {
     /**
      * Add given message to this {@link ChannelOutboundBuffer}. The given {@link ChannelPromise} will be notified once
      * the message was written.
+     *
+     * 在调用addMessage()方法后，采用CAS方式增加待发送节点的字节 数，此时如果待发送的字节数大于通道写buf的最高阈值
+     * writeBufferHighWaterMark，则更新通道状态为不可写，同时会触发 channelWritabilityChanged事件，防止内存溢出。
+     * 至于在 ServerHandler的channelWritabilityChanged()方法中进行怎样的处 理，读者可回到2.6节仔细看看Flink的背压。
+     *
+     *
+     * ChannelOutboundBuffer的代码解读顺序与图5-8的处理过程一 致，从addMessage()方法添加消息到缓存区开始，调用addFlush()方
+     * 法标识待发送的Entry，并调用AbstractUnsafe的flush0，最终到 NioSocketChannel的doWrite()方法，才真正地把所有Entry的内容写
+     * 入了Socket中。其中，flush0()方法与doWrite()方法在第4章已经进 行了详细的剖析，此处不再描述。下面只剖析与 ChannelOutboundBuffer相关的部分，
+     * 包括ChannelOutboundBuffer的 nioBuffers()、removeBytes()与remove()方法。
+     *
+     * 每次调用ctx.channel().write() ，最终都会触发addMessage()方法，并把数据加在tailEntry后面
      */
     public void addMessage(Object msg, int size, ChannelPromise promise) {
+        //
         Entry entry = Entry.newInstance(msg, size, total(msg), promise);
         if (tailEntry == null) {
             flushedEntry = null;

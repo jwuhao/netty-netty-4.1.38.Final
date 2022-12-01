@@ -33,6 +33,24 @@ import java.nio.channels.GatheringByteChannel;
 import java.nio.channels.ScatteringByteChannel;
 import java.nio.charset.Charset;
 
+/**
+ *AdvancedLeakAwareByteBuf是SimpleLeakAwareByteBuf的子类， 它们的主要作用都是记录ByteBuf的调用轨迹。区别在于，
+ *  AdvancedLeakAwareByteBuf 记 录 ByteBuf 的 所 有 操 作 ; SimpleLeakAwareByteBuf只在ByteBuf被销毁时告诉内存泄漏检测工具
+ *  把正常销毁的对象从检测缓存中移除，方便判断ByteBuf是否泄漏，不 记录ByteBuf的操作。
+ *
+ *  第二，每个ByteBuf的最新调用栈信息记录在其弱引用中，这个弱 引用对象与ByteBuf都包装在SimpleLeakAwareByteBuf类中。弱引用对
+ *  象除了记录ByteBuf的调用轨迹，还要有关闭检测的功能，因为当 ByteBuf被销毁时需要关闭资源跟踪，并清除对资源对象的引用，防止误报。
+ *
+ *  第三，在创建弱引用时，需要引用队列的配合。当检测是否有资 源泄漏时，需要遍历引用队列，找到已回收的ByteBuf的引用，通过这 些引用判断是否调用了ByteBuf的销毁接口，检测是否有泄漏。
+ *
+ *
+ *
+ *  Netty先把所有弱引用缓存起来，在ByteBuf被销毁后，再从缓存 中移除对应的弱引用，当遍历到此弱引用时，若发现它已从缓存中移 除，则表示ByteBuf无内存泄漏。此种判断方式有点特别，
+ *  一般只需在 类中加个原子属性即可。例如，AtomicBoolean，在将其正常销毁后， 把弱引用的原子属性值设为true，当检测判断时，若此原子属性为 false，
+ *  则表示非正常销毁。但Netty未采用这种方式，而是使用缓存 容器来判断是否有泄漏。Netty会把这些弱引用对象强引用起来。由于 ByteBuf资源对象被垃圾回收器回收后，
+ *  若其弱引用对象若没有地方强 关联，则会在下一次被垃圾回收器回收，因此Netty采用全局Set把它 缓存起来，防止弱引用对象在遍历之前被回收。
+ *
+ */
 final class AdvancedLeakAwareByteBuf extends SimpleLeakAwareByteBuf {
 
     private static final String PROP_ACQUIRE_AND_RELEASE_ONLY = "io.netty.leakDetection.acquireAndReleaseOnly";

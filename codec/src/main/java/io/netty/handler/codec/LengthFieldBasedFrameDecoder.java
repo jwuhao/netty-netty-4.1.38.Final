@@ -183,6 +183,7 @@ import io.netty.handler.codec.serialization.ObjectDecoder;
  * +------+--------+------+----------------+      +------+----------------+
  * </pre>
  * @see LengthFieldPrepender
+ * 另一种是根据写入消息体长度值解码(如LengthFieldBasedFrameDecoder)，这种解码器的一般用法 是先读取前面4个字节的int值，再根据这个值去读取可用的数据包。
  */
 public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
 

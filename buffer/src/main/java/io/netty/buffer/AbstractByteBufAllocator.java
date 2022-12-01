@@ -36,15 +36,26 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
         ResourceLeakDetector.addExclusions(AbstractByteBufAllocator.class, "toLeakAwareBuffer");
     }
 
+    // Netty的内存泄漏检测机制有以下4种检测级别。
+    // 内存泄漏检测入口
+    // ByteBuf 在分配后需要次给内存泄漏检测处理
+    // 处理完后对ByteBuf 对象进行相应的包装并返回
     protected static ByteBuf toLeakAwareBuffer(ByteBuf buf) {
+        // 弱引用
         ResourceLeakTracker<ByteBuf> leak;
         switch (ResourceLeakDetector.getLevel()) {
+            // 默认级别
             case SIMPLE:
+                /**
+                 * 每种类型的资源都会创建一个内存泄漏检测器ResourceLeakDetector, 通过内存泄漏检测器获取弱引用
+                 */
                 leak = AbstractByteBuf.leakDetector.track(buf);
+                // 若弱引用不为空， 则说明此buf被采集了， buf 一旦被采集， 就需要返回对应级别的包装对象，否则会出现误报
                 if (leak != null) {
                     buf = new SimpleLeakAwareByteBuf(buf, leak);
                 }
                 break;
+                // 高级和偏执级别，由于它们都需要被追踪buf的调用轨迹 ， 因此返回的包装对象相同
             case ADVANCED:
             case PARANOID:
                 leak = AbstractByteBuf.leakDetector.track(buf);

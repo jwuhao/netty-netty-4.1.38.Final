@@ -145,6 +145,10 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
     }
 
     @Override
+    // NioMessageUnsafe先调 用 NioServerSocketChannel 的 doReadMessages() 方 法 读 取 接 入 的 Channel。
+    // 而本小节中的NioByteUnsafe不断地调用NioSocketChannel 的doReadBytes()方法从Channel中读取数据，
+    // 再把读取到的ByteBuf交 给管道Pipeline，并触发后续一系列ChannelInboundHandler的 channelRead()方法。
+    // 整个读取数据的过程涉及的Handler都是以 HeadContext开头的，按顺序运行用户自定义的各个解码器和服务端业 务逻辑处理Handler。
     protected int doReadMessages(List<Object> buf) throws Exception {
         // 调用serverSocketChannel.accept()监听新加入的链接
         SocketChannel ch = SocketUtils.accept(javaChannel());

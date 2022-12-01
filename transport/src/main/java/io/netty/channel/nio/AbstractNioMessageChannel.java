@@ -67,6 +67,12 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
         private final List<Object> readBuf = new ArrayList<Object>();
 
         @Override
+        // 在 NioMessageUnsafe 的 read() 方 法 中 会 执 行 doReadMessages(此处用到了模板设计模式)。真正调用的是 AbstractNioMessageChannel
+        // 的 子 类 NioServerSocketChannel 的 doReadMessages() 方 法 。 此 方 法 最 终 调 用 ServerSocketChannel 的 accept()方法，
+        // 以获取接入的SocketChannel。将accept()方法在 AbstractNioChannel的构造方法中设置为非阻塞状态，不管是否有 Channel接入，
+        // 都会立刻返回，并且一次最多默认获取16个，可以通过 设 置 option 参 数 MAX_MESSAGES_PER_READ 来 调 整 。 获 取 到 SocketChannel 后 ，
+        // 构 建 NioSocketChannel ， 并 把 构 建 好 的 NioSocketChannel对象作为消息msg传送给Handler(此Handler是 ServerBootstrapAcceptor ) ，
+        // 触 发 Pipeline 管 道 的 fireChannelRead()方法，进而触发read事件，最后会调用Handler的 channelRead()方法。
         public void read() {
             assert eventLoop().inEventLoop();
             // 获取Channel的配置对象

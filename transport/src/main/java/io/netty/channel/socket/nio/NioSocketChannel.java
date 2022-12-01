@@ -350,6 +350,10 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
     }
 
     @Override
+    // 下面主要讲解Worker线程组 NioEventLoop线程是如何读取Socket链路传过来的数据的。本小节跟 5.2.1小节类似，区别在于实际处理Unsafe类
+    // 从NioMessageUnsafe变成 了NioByteUnsafe，Handler类变成了用户设置的编/解码器，以及业务 逻辑处理Handler不再是ServerBootstrapAcceptor。
+    // 接下来先看一幅 NioEventLoop处理就绪OP_READ事件的时序图，如图5-4所示。
+
     // 实现doReadBytes()方法，从SocketChannel中读取数据。
     protected int doReadBytes(ByteBuf byteBuf) throws Exception {
         // 获取计算内存分配器Handle

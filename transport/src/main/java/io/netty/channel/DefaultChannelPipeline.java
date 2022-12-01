@@ -89,6 +89,15 @@ public class DefaultChannelPipeline implements ChannelPipeline {
      */
     private boolean registered;
 
+    /**
+     *                  |--------->Decorder1------> Decoder2------->|
+     * HeadContext ---->|                                           |------> TailContext
+     *           | <--- |                                           |<------|
+     *                  |<-------Encoder1  <----- Encoder2 <--------|
+     *
+     * 图5-7中的HeadContext和TailContext之间连接了各种编码器、解 码器，形成了整个Handler链表，图中的箭头表示编码器和解码器的查
+     * 找方向。Handler链表的头部和尾部都是在DefaultChannelPipeline的 构造方法中定义好的，具体代码如下:
+     */
     protected DefaultChannelPipeline(Channel channel) {
         this.channel = ObjectUtil.checkNotNull(channel, "channel");
         succeededFuture = new SucceededChannelFuture(channel, null);
@@ -224,6 +233,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return this;
     }
 
+    // 通过addLast()方法追加进去的编码器和解码器都位于 TailContext的前面。
     private void addLast0(AbstractChannelHandlerContext newCtx) {
         AbstractChannelHandlerContext prev = tail.prev;
         newCtx.prev = prev;

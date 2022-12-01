@@ -727,6 +727,15 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
             // Also check for readOps of 0 to workaround possible JDK bug which may otherwise lead
             // to a spin loop
+            // 通过前面的学习，了解了Netty服务的启动过程，以及Netty服务 采用辅助类ServerBootstrap启动NioEventLoop线程，
+            // 并依次开启 Selector、创建ServerSocketChannel并注册到Selector上、设置监听 OP_ACCEPT事件的过程。那么
+            // 当有Socket通道接入时，Netty是如何处 理的呢?本节还是通过图、文字及Netty部分源码的方式对这块处理逻 辑进行详细的剖析。
+            // 下面先看一幅NioEventLoop处理就绪OP_ACCEPT事 件的时序图，如图5-3所示。
+
+
+            // 1. 当NioEventLoop中的多路复用器Selector轮询到就绪的 SelectionKey时，判断Key的readyOps类型是否为OP_ACCEPT，若是，
+            // 则5.1节提到的Key的attachment就是NioServerSocket Channel本身，先获取SelectionKey的attachment对象，再触发此对象的辅助类
+            // Unsafe的实现类NioMessageUnsafe的read()方法进行处理。
             if ((readyOps & (SelectionKey.OP_READ | SelectionKey.OP_ACCEPT)) != 0 || readyOps == 0) {
                 unsafe.read();
             }

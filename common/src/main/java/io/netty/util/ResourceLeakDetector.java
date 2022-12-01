@@ -39,6 +39,55 @@ import static io.netty.util.internal.StringUtil.EMPTY_STRING;
 import static io.netty.util.internal.StringUtil.NEWLINE;
 import static io.netty.util.internal.StringUtil.simpleClassName;
 
+/**
+ * Netty在默认情况下采用的是池化的PooledByteBuf，以提高程序 性能。但是PooledByteBuf在使用完毕后需要手动释放，否则会因 PooledByteBuf
+ * 申请的内存空间没有归还导致内存泄漏，最终使内存溢 出。一旦泄漏发生，在复杂的应用程序中找到未释放的ByteBuf并不是 一个简单的事，在没有工具辅助的情况下只能检查所有源码，效率很 低。
+ *
+ * 为了解决这个问题，Netty运用JDK的弱引用和引用队列设计了一 套专门的内存泄漏检测机制，用于实现对需要手动释放的ByteBuf对象 的监控。
+ *
+ *
+ * 图4-12描述了各种引用及其各自的特征。
+ *                |---------> 强引用
+ * 引用 --------> | ---------> 软引用 -------->  SoftReference --------> 当内存不足时，被丧回收器回收
+ *                |
+ *                |                           |------> 当回收时，纯弱引用的对象都会被回收掉
+ *                | --------->  弱引用 ------> |------> 与引用队列配合使用， 当回收对象时，会将对象的弱引用加入到队列中
+ *                |
+ *                |                                                     |------> 任何时候都可能被垃圾回收器回收
+ *                |----------> 虚引用 ---------> WeakReference---------->|------> 与引用队列配合使用，当回收对象时，会将对象的虚引用加入到队列中
+ * 强引用:经常使用的编码方式，如果将一个对象赋值给一个变 量，只要这个变量可用，那么这个对象的值就被该变量强引用了;否 则垃圾回收器不会回收该对象。
+ * 软引用:当内存不足时，被垃圾回收器回收，一般用于缓存。
+ * 弱引用:只要是发生回收的时候，纯弱引用的对象都会被回收; 当对象未被回收时，弱引用可以获取引用的对象。
+ * 虚引用:在任何时候都可能被垃圾回收器回收。如果一个对象与 虚引用关联，则该对象与没有引用与之关联时一样。虚引用获取不到引用的对象。
+ *
+ * 引用队列:与虚引用或弱引用配合使用，当普通对象被垃圾回收 器回收时，会将对象的弱引用和虚引用加入引用队列中。Netty运用这
+ * 一特性来检测这些被回收的ByteBuf是否已经释放了内存空间。下面对 其实现原理及源码进行详细剖析。
+ *
+ *  4.5.1 内存泄漏检测原理
+ *
+ *  Netty的内存泄漏检测机制主要是检测ByteBuf的内存是否正常释 放。想要实现这种机制，就需要完成以下3步。
+ *  1. 采集ByteBuf对象。
+ *  2. 记录ByteBuf的最新调用轨迹信息，方便溯源。
+ *  3. 检查是否有泄漏，并进行日志输出。
+ *
+ * 第一，采集入口在内存分配器PooledByteBufAllocator的 newDirectBuffer与newHeapBuffer方法中，对返回的ByteBuf对象做一 层 包 装 ，
+ * 包 装 类 分 两 种 : SimpleLeakAwareByteBuf 与 AdvancedLeakAwareByteBuf。
+ *
+ * ResourceLeakDetector在整个内存泄漏检测机制中起核心作用。 一种缓冲区资源会创建一个ResourceLeakDetector实例，并监控此缓
+ * 冲区类型的池化资源(本书只介绍AbstractByteBuf类型的资源)。 ResourceLeakDetector的trace()方法是整套检测机制的入口，提供资
+ * 源采集逻辑，运用全局的引用队列和引用缓存Set构建ByteBuf的弱引 用对象，并检测当前监控的资源是否出现了内存泄漏。若出现了内存 泄漏，
+ * 则输出泄漏报告及内存调用轨迹信息。
+ *
+ *
+ *
+ *
+ * 当系统处于开发和功能测试阶段时，一般会把级别设置为 PARANOID，容易发现问题。在系统正式上线后，会把级别降到 SIMPLE。若出现了泄漏日志的情况，
+ * 则在重启服务时，可以把级别调 为ADVANCED，查找内存泄漏的轨迹，方便定位。当系统上线很长一段 时间后，比较稳定了，可以禁用内存泄漏检测机制。
+ * Netty对这些级别 的处理具体是怎样实现按一定比例采集的呢?通过接下来的源码解读 来寻找答案。图4-13为内存泄漏检测机制的功能。
+ *
+ *
+ *
+ */
 public class ResourceLeakDetector<T> {
 
     private static final String PROP_LEVEL_OLD = "io.netty.leakDetectionLevel";
@@ -57,26 +106,32 @@ public class ResourceLeakDetector<T> {
 
     /**
      * Represents the level of resource leak detection.
+     * Netty的内存泄漏检测机制有以下4种检测级别。
      */
     public enum Level {
         /**
          * Disables resource leak detection.
          */
-        DISABLED,
+        DISABLED,//DISABLED:表示禁用，不开启检测。
         /**
          * Enables simplistic sampling resource leak detection which reports there is a leak or not,
          * at the cost of small overhead (default).
          */
+        // SIMPLE:Netty的默认设置，表示按一定比例采集。若采集的 ByteBuf出现泄漏，则打印LEAK:XXX等日志，但没有ByteBuf的任何调
+        // 用栈信息输出，因为它使用的包装类是SimpleLeakAwareByteBuf，不 会进行记录。
         SIMPLE,
         /**
          * Enables advanced sampling resource leak detection which reports where the leaked object was accessed
          * recently at the cost of high overhead.
+         *
          */
+        // ADVANCED:它的采集与SIMPLE级别的采集一样，但会输出 ByteBuf 的 调 用 栈 信 息 ， 因 为 它 使 用 的 包 装 类 是 AdvancedLeakAwareByteBuf。
         ADVANCED,
         /**
          * Enables paranoid resource leak detection which reports where the leaked object was accessed recently,
          * at the cost of the highest possible overhead (for testing purposes only).
          */
+        // PARANOID:偏执级别，这种级别在ADVANCED的基础上按100%的 比例采集。
         PARANOID;
 
         /**
@@ -247,17 +302,21 @@ public class ResourceLeakDetector<T> {
      * @return the {@link ResourceLeakTracker} or {@code null}
      */
     @SuppressWarnings("unchecked")
+    // 重点关注内存泄漏检测器的track()方法，此方法不仅采集buf， 还会在采集完后，检测是否有内存泄漏的buf，并打印日志。具体代码 解读如下:
     public final ResourceLeakTracker<T> track(T obj) {
         return track0(obj);
     }
 
     @SuppressWarnings("unchecked")
     private DefaultResourceLeak track0(T obj) {
+        // 获取内存泄漏检测级别
         Level level = ResourceLeakDetector.level;
+        // 不检测，也不采集
         if (level == Level.DISABLED) {
             return null;
         }
 
+        // 当级别比偏执级别低时，获取一个128以内的随机数， 若得到的数不为0，则不采集，若为0，则检测是否有泄漏，并输出泄漏日志，同时创建一个弱引用
         if (level.ordinal() < Level.PARANOID.ordinal()) {
             if ((PlatformDependent.threadLocalRandom().nextInt(samplingInterval)) == 0) {
                 reportLeak();
@@ -265,6 +324,7 @@ public class ResourceLeakDetector<T> {
             }
             return null;
         }
+        // 偏执级别都采集
         reportLeak();
         return new DefaultResourceLeak(obj, refQueue, allLeaks);
     }
@@ -276,6 +336,7 @@ public class ResourceLeakDetector<T> {
             if (ref == null) {
                 break;
             }
+
             ref.dispose();
         }
     }
@@ -287,6 +348,7 @@ public class ResourceLeakDetector<T> {
         }
 
         // Detect and report previous leaks.
+        // 循环获取引用队列中的弱引用
         for (;;) {
             @SuppressWarnings("unchecked")
             DefaultResourceLeak ref = (DefaultResourceLeak) refQueue.poll();
@@ -294,15 +356,19 @@ public class ResourceLeakDetector<T> {
                 break;
             }
 
+            // 检测是否泄漏 ， 若未泄漏，则继续下一次循环
             if (!ref.dispose()) {
                 continue;
             }
 
+            // 获取buf的调用栈信息
             String records = ref.toString();
+            // 不再输出曾经输出过的泄漏记录
             if (reportedLeaks.putIfAbsent(records, Boolean.TRUE) == null) {
                 if (records.isEmpty()) {
                     reportUntracedLeak(resourceType);
                 } else {
+                    // 输出内存泄漏日志及其调用栈信息
                     reportTracedLeak(resourceType, records);
                 }
             }
@@ -341,6 +407,8 @@ public class ResourceLeakDetector<T> {
     }
 
     @SuppressWarnings("deprecation")
+    // ResourceLeakDetector中有个私有类——DefaultResourceLeak， 实现了ResourceLeakTracker接口，主要负责跟踪资源的最近调用轨 迹，
+    // 同时继承WeakReference弱引用。调用轨迹的记录被加入 DefaultResourceLeak的Record链表中，Record链表不会保存所有记 录，因为它的长度有一定的限制。
     private static final class DefaultResourceLeak<T>
             extends WeakReference<Object> implements ResourceLeakTracker<T>, ResourceLeak {
 
@@ -415,38 +483,55 @@ public class ResourceLeakDetector<T> {
          * away. High contention only happens when there are very few existing records, which is only likely when the
          * object isn't shared! If this is a problem, the loop can be aborted and the record dropped, because another
          * thread won the race.
+         *
+         * 在ADVANCED之上的级别的操作中，ByteBuf的每项操作都涉及线程 调用栈轨迹的记录。那么该如何获取线程栈调用信息呢?在记录某个
+         * 点的调用栈信息时，Netty会创建一个Record对象，Record类继承 Exception的父类Throwable。因此在创建Record对象时，当前线程的
+         * 调用栈信息就会被保存起来。关于调用栈信息的保存及获取的代码解 读如下:
+         *
+         *  记录调用轨迹
          */
         private void record0(Object hint) {
             // Check TARGET_RECORDS > 0 here to avoid similar check before remove from and add to lastRecords
+            // 如果 TARGET_RECORDS > 0 则记录
             if (TARGET_RECORDS > 0) {
                 Record oldHead;
                 Record prevHead;
                 Record newHead;
                 boolean dropped;
                 do {
+                    // 判断记录链头是否为空，为空表示已经关闭，把之前的链头作为第二个元素赋值给新链表
                     if ((prevHead = oldHead = headUpdater.get(this)) == null) {
                         // already closed.
                         return;
                     }
+                    // 获取链表的长度
                     final int numElements = oldHead.pos + 1;
                     if (numElements >= TARGET_RECORDS) {
+                        // backOffFactor 是用来计算是否替换的因子 ， 其最小值为numElements-TARGET_RECORDS ,元素越多，其值越大，最大值为30
                         final int backOffFactor = Math.min(numElements - TARGET_RECORDS, 30);
+                        // 1/2^backOffFactor的概率不会执行此if 代码块， prevHead = oldHead.next 表示用之前的链头元素作为新链表的第二个元素
+                        // 丢弃原来的链头， 同时设置 drapped 为false
                         if (dropped = PlatformDependent.threadLocalRandom().nextInt(1 << backOffFactor) != 0) {
                             prevHead = oldHead.next;
                         }
                     } else {
                         dropped = false;
                     }
+                    // 创建一个新的Record ，并将其添加到链表上， 作为链表的新的头部
                     newHead = hint != null ? new Record(prevHead, hint) : new Record(prevHead);
                 } while (!headUpdater.compareAndSet(this, oldHead, newHead));
+                // 若有丢弃，则更新记录丢弃的数
                 if (dropped) {
                     droppedRecordsUpdater.incrementAndGet(this);
                 }
             }
         }
 
+        // 判断是否泄漏
         boolean dispose() {
+            // 清理对资源对象的引用
             clear();
+            // 若引用缓存还存在此引用，则说明buf未释放，内存泄漏了
             return allLeaks.remove(this);
         }
 
@@ -494,7 +579,7 @@ public class ResourceLeakDetector<T> {
          * <b>It is the caller's responsibility to ensure that this synchronization will not cause deadlock.</b>
          *
          * @param ref the reference. If {@code null}, this method has no effect.
-         * @see java.lang.ref.Reference#reachabilityFence
+         * @see java.lang.ref.Reference# reachabilityFence
          */
         private static void reachabilityFence0(Object ref) {
             if (ref != null) {
@@ -505,43 +590,53 @@ public class ResourceLeakDetector<T> {
         }
 
         @Override
+        // 弱引用重写了toString()方法， 需要注意，若采用IDE工具debug 调试代码则在处理对象时，IDE 会自动调用toString()方法
         public String toString() {
+            // 获取记录列表的头部
             Record oldHead = headUpdater.getAndSet(this, null);
+            // 若无记录，则返回空字符串
             if (oldHead == null) {
                 // Already closed
                 return EMPTY_STRING;
             }
 
+            // 若记录太长，则会丢弃部分记录，获取丢弃了多少记录
             final int dropped = droppedRecordsUpdater.get(this);
             int duped = 0;
 
+            // 由于每次在链表新增头部时，其pos=旧的pos + 1 , 因此最新的链表头部的pos就是链表的长度
             int present = oldHead.pos + 1;
             // Guess about 2 kilobytes per stack trace
+            // 设置buf容量（大概为2KB栈信息 * 链表长度  ） ，并添加换行符
             StringBuilder buf = new StringBuilder(present * 2048).append(NEWLINE);
             buf.append("Recent access records: ").append(NEWLINE);
 
             int i = 1;
             Set<String> seen = new HashSet<String>(present);
             for (; oldHead != Record.BOTTOM; oldHead = oldHead.next) {
+                // 获取调用栈信息
                 String s = oldHead.toString();
                 if (seen.add(s)) {
+                    // 遍历到最初的记录与其他节点输出有所不同
                     if (oldHead.next == Record.BOTTOM) {
                         buf.append("Created at:").append(NEWLINE).append(s);
                     } else {
                         buf.append('#').append(i++).append(':').append(NEWLINE).append(s);
                     }
                 } else {
+                    // 出现重复的记录
                     duped++;
                 }
             }
-
+            // 当出现重复的记录时， 加上特殊的日志
             if (duped > 0) {
                 buf.append(": ")
                         .append(duped)
                         .append(" leak records were discarded because they were duplicates")
                         .append(NEWLINE);
             }
-
+            // 若出现记录数超过了TARGET_RECORDS(默认为4)， 则输出丢弃了多少记录等额外信息，可以通过设置
+            // io.netty.leakDetection.targetRecords来修改记录的长度
             if (dropped > 0) {
                 buf.append(": ")
                    .append(dropped)
@@ -615,18 +710,23 @@ public class ResourceLeakDetector<T> {
         }
 
         @Override
+        // Record 的toString() 方法获取Record创建时的调用栈信息
         public String toString() {
             StringBuilder buf = new StringBuilder(2048);
+            // 先添加提示信息
             if (hintString != null) {
                 buf.append("\tHint: ").append(hintString).append(NEWLINE);
             }
 
             // Append the stack trace.
+            // 再添加栈信息
             StackTraceElement[] array = getStackTrace();
             // Skip the first three elements.
+            // 跳过前面的3个栈元素 ， 因为他们是record()方法的栈信息，显示没有意义
             out: for (int i = 3; i < array.length; i++) {
                 StackTraceElement element = array[i];
                 // Strip the noisy stack trace elements.
+                // 跳过一些不必要的方法信息
                 String[] exclusions = excludedMethods.get();
                 for (int k = 0; k < exclusions.length; k += 2) {
                     if (exclusions[k].equals(element.getClassName())
@@ -634,12 +734,39 @@ public class ResourceLeakDetector<T> {
                         continue out;
                     }
                 }
-
+                // 格式化
                 buf.append('\t');
                 buf.append(element.toString());
+                // 加上换行
                 buf.append(NEWLINE);
             }
             return buf.toString();
         }
     }
+
+
+    // 本章主要对Netty的NioEventLoop线程、Channel、ByteBuf缓冲 区、内存泄漏检测机制进行了详细的剖析。这些组件都是Netty的核 心，
+    // 在学习其源码的同时，要思考其整体设计思想，如Channel和 ByteBuf的整体设计及其每层抽象类的意义;在这些组件中，Netty对 哪些部分做了性能优化，
+    // 如运用JDK的Unsafe、乐观锁、对象池、 SelectedSelectionKeySet数据结构优化等。除了本章的核心组件， Netty还有Handler事件驱动模型、编码和解码、
+    // 时间轮、复杂的内存 池管理等，在后续章节会进行详细的剖析。
+    public static void main(String[] args) {
+        // 创建字符串对象
+        String str = new String("内存泄漏检测 ");
+        // 创建一个引用队列
+        ReferenceQueue referenceQueue = new ReferenceQueue<>();
+        // 创建一个弱引用，弱引用引用str字符串
+        WeakReference weakReference = new WeakReference(str, referenceQueue);
+        // 切断str 引用和内存泄漏检测，字符串之间的引用
+        str = null;
+        // 取出弱引用所引用的对象,若是虚引用，则虚引用无法获取被引用的对象
+        System.out.println(weakReference.get());
+        System.gc();
+        // 强制垃圾回收
+        System.runFinalization();
+        // 垃圾回收后，弱引用将被放到引用队列，取出引用队列中的引用并与weakReference进行比较，应输出true
+        System.out.println(referenceQueue.poll() == weakReference);
+    }
+
+
+
 }

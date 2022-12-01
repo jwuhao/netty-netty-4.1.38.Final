@@ -452,6 +452,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         }
 
         @Override
+
         public final void register(EventLoop eventLoop, final ChannelPromise promise) {
             if (eventLoop == null) {
                 throw new NullPointerException("eventLoop");
@@ -466,6 +467,9 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return;
             }
 
+            // 当将NioSocketChannel注册到Selector上时，有部分代码需要解 读，NioSocketChannel对应的NioEventLoop线程在未启动时，
+            // eventLoop.inEventLoop()会返回false。若Worker的线程数为16，则 在前面16个NioSocketChannel注册时，都会把注册看作一个Task并添
+            // 加到NioEventLoop的队列中，同时启动NioEventLoop队列，唤醒 Selector。这部分功能在AbstractUnsafe的register()方法中，具体 代码如下:
             AbstractChannel.this.eventLoop = eventLoop;
 
             if (eventLoop.inEventLoop()) {
@@ -489,6 +493,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             }
         }
 
+        // 在AbstractUnsafe的register0()方法中有关于如何将用户自定义 的Hanlder添加到NioSocket Channel的Handler链表中的方法，核心代 码解读如下:
         private void register0(ChannelPromise promise) {
             try {
                 // check if the channel is still open as it could be closed in the mean time when the register
@@ -497,20 +502,31 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                     return;
                 }
                 boolean firstRegistration = neverRegistered;
+                // 此方法调用AbstractNioChannel的doRegister()方法，把NioServerSocketChannel和NioSocketChannel的注册抽象出来
                 doRegister();
                 neverRegistered = false;
                 registered = true;
 
                 // Ensure we call handlerAdded(...) before we actually notify the promise. This is needed as the
                 // user may already fire events through the pipeline in the ChannelFutureListener.
+                /**
+                 * 在ServerBootstrapAcceptor的channelRead()方法中把用户定义的Handler 追加到Channel 的管道中（child.pipeline().addLast(childHandler)）
+                 * 此方法会追加一个回调，此时正好会触发这个回调
+                 * if(!registered){
+                 *      newCtx.setAddPending();
+                 *      callHandlerCallbackLater(newCtx,true);
+                 *      return this;
+                 * }
+                 */
                 pipeline.invokeHandlerAddedIfNeeded();
-
+                // 此方法会触发promise
                 safeSetSuccess(promise);
                 pipeline.fireChannelRegistered();
                 // Only fire a channelActive if the channel has never been registered. This prevents firing
                 // multiple channel actives if the channel is deregistered and re-registered.
                 if (isActive()) {
                     if (firstRegistration) {
+                        // 此方法会触发HeadContext的channelActive()方法，并最终调用AbstractNioChannel的doBeginRead()方法注册监听OP_READ事件
                         pipeline.fireChannelActive();
                     } else if (config().isAutoRead()) {
                         // This channel was registered before and autoRead() is set. This means we need to begin read

@@ -767,6 +767,16 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         }
     }
 
+
+
+    // 至此，第一个问题告一段落，由于编码的细节比较简单，此处不 再细说。再来看第二个问题，在ServerHandler里开启额外线程去执行
+    // ctx.channel().writeAndFlush(JSONObject.toJSONString (response))时，NioEventLoop线程如何获取response内容并写回给 Channel呢?
+    //在 写 的 过 程 中 有 两 种 task ， 分 别 是 WriteTask 和 WriteAndFlushTask，主要根据是否刷新来决定使用哪种task。
+
+    // 在 NioSocketChannel中，每个Channel都有一条NioEventLoop线程与之对 应，在NioEventLoop的父类SingleThreadEventExecutor中有个队列属 性
+    // ， 叫 taskQueue ， 它 主 要 通 过 SingleThreadEventExecutor 的 execute()方法存放非EventLoop线程的任务，包括WriteTask和
+    // WriteAddFlushTask这两种WriteTask。当调用添加任务时，会唤醒 EventLoop线程，从而I/O线程会去调用这些任务的run()方法，并把结
+    // 果写回Socket通道。具体核心代码如下:
     private void write(Object msg, boolean flush, ChannelPromise promise) {
         ObjectUtil.checkNotNull(msg, "msg");
         try {
@@ -784,19 +794,20 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
                 (MASK_WRITE | MASK_FLUSH) : MASK_WRITE);
         final Object m = pipeline.touch(msg, next);
         EventExecutor executor = next.executor();
-        if (executor.inEventLoop()) {
+        if (executor.inEventLoop()) {       // 判断是否是 EventLoop 线程
             if (flush) {
                 next.invokeWriteAndFlush(m, promise);
             } else {
                 next.invokeWrite(m, promise);
             }
-        } else {
+        } else {                // 当为非EventLoop线程时需要构建 task
             final AbstractWriteTask task;
             if (flush) {
                 task = WriteAndFlushTask.newInstance(next, m, promise);
             }  else {
                 task = WriteTask.newInstance(next, m, promise);
             }
+            // 把task加入到executor 中，这个executor 就是NioEventLoop ，若是失败，则取消task执行
             if (!safeExecute(executor, task, promise, m)) {
                 // We failed to submit the AbstractWriteTask. We need to cancel it so we decrement the pending bytes
                 // and put it back in the Recycler for re-use later.
@@ -912,6 +923,8 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         return false;
     }
 
+    // 当发生读事件(在Netty里也叫输入inbound事件)时，I/O EventLoop 线 程 先 从 HeadContext 中 依 次 向 后 查 找
+    // ChannelInboundHandler类型的Handler，并调用其channelRead()方 法。
     private AbstractChannelHandlerContext findContextInbound(int mask) {
         AbstractChannelHandlerContext ctx = this;
         do {
@@ -920,6 +933,8 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         return ctx;
     }
 
+    // 当发生写操作outbound事件时，从TailContext中依次向前查找 ChannelOutboundHandler类型的Handler，并调用其write()方法。
+    // 这 也是为何解码器先追加的被先调用，而编码器正好相反的缘故。下面 是对Netty分别查找inbound()和outbound()方法的解读:
     private AbstractChannelHandlerContext findContextOutbound(int mask) {
         AbstractChannelHandlerContext ctx = this;
         do {

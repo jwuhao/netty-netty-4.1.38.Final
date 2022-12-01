@@ -21,6 +21,20 @@ import java.net.InetSocketAddress;
 
 /**
  * A TCP/IP {@link ServerChannel} which accepts incoming TCP/IP connections.
+ *
+ *
+ *
+ *
+ * ServerSocketChannel:与普通BIO中的ServerSocket一样，主 要用来监听新加入的TCP连接的通道，而且其启动方式与ServerSocket
+ * 的启动方式也非常相似，只需要在开启端口监听之前，把 ServerSocketChannel注册到Selector上，并设置监听OP_ACCEPT事件 即可。
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
  */
 public interface ServerSocketChannel extends ServerChannel {
     @Override

@@ -39,6 +39,64 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * {@link Bootstrap} sub-class which allows easy bootstrap of {@link ServerChannel}
+ *本节主要结合实际应用，联合第4章分析的核心组件，对Netty的 整体运行机制进行详细的剖析，主要分为两部分:第一部分，Netty服 务的启动过程及其
+ * 内部线程处理接入Socket链路的过程;第二部分， Socket链路数据的读/写。本节主要通过普通Java NIO服务器的设计流 程来详细讲述Netty是如何运
+ * 用NIO启动服务器，并完成端口监听以接 收客户端的请求的;以及它与直接使用NIO有哪些区别，有什么优点。 下面先看看NIO中几个比较重要的类。
+ *
+ *
+ *
+ *                                          | ----------> NioEventLoop.openSelector 创建多路复用器
+ * ServerBootstrap辅助启动过程 ------------->|
+ *                                          |                                                           |-------> channelFactory.newChannel 此处创建NioServerChannel实例，并打印ServerSocketChannel
+ *                                          |                                                           |                                                                                             |---> setChannelOptions
+ *                                          |                                                           |-------> init(初始化，设置Channel参数，将 ServerBootstrapAcceptor 准备加入到ChannelPipeline管道中) |---> ChannelPipeline.addLast
+ *                                          |                                                           |
+ *                                          |                           |------> initAndRegister----->  |                                       |-------> AbstractChannel.register()
+ *                                          |                           |                               |                                       |-------> AbstractNioChannel.doRegister()
+ *                                          |                           |                               |-------> NioEventLoop.register-------->|-------> 注册到Selector 上 NioServerSocketChannel.register
+ *                                          |------> doBind(绑定接口)--->|                                                                       |-------> DefaultChannelPipeline.invokeHandlerAddedIfNeeded
+ *                                          |                           |                                                                       |-------> 准备处理接入链接 ChannelPipeline.addLast(ServerBootstrapAcceptor)
+ *                                          |                           |                               |-----> AbstractChannel.bind
+ *                                          |                           |------> doBind(绑定接口)------->|-----> NioServverSocketChannel.doBind
+ *                                                                      |                               |-----> ServerSocketChannel.bind
+ *                                                                      |
+ *                                                                      |                                                                                                                           |---->1.
+ *                                                                      |                                                                                                                           |
+ *                                                                      |                                                                                                                           |
+ *                                                                      |-------> AbstractChannel.invokeLater(绑定端口后，最终设置监听OP_ACCEPT事件)------>DefaultChannelPipeline.fireChannelActive--> |
+ *                                                                      |                                                                                                                           |
+ *                                                                      |
+ *
+ *
+ * Netty服务的启动主要分以下5步。
+ * 1. 创建两个线程组，并调用父类 MultithreadEventExecutorGroup的构造方法实例化每个线程组的子线 程数组，Boss线程组只设置一条线程，
+ * Worker线程组默认线程数为 Netty Runtime.availableProcessors()*2。在NioEventLoop线程创建的同时多路复用器Selector被开启(每条NioEventLoop线程都会开启 一个多路复用器)。
+ * 2. 在 AbstractBootstrap 的 initAndRegister 中 ， 通 过 ReflectiveChannelFactory.newChannel() 来 反 射 创 建
+ * NioServerSocketChannel对象。由于Netty不仅仅只提供TCP NIO服 务，因此此处使用了反射开启ServerSocketChannel通道，并赋值给 SelectableChannel的ch属性。
+ * 3. 初始化NioServerSocketChannel、设置属性attr和参数 option，并把Handler预添加到NioServerSocketChannel的Pipeline管 道中。其中，
+ * attr是绑定在每个Channel上的上下文;option一般用来 设置一些Channel的参数;NioServerSocketChannel上的Handler除了 包括用户自定义的，还会加上ServerBootstrapAcceptor。
+ * 4. NioEventLoop线程调用AbstractUnsafe.register0()方法， 此方法执行NioServer SocketChannel的doRegister()方法。底层调用 ServerSocketChannel
+ * 的 register() 方 法 把 Channel 注 册 到 Selector 上，同时带上了附件，此附件为NioServerSocketChannel对象本身。 此处的附件
+ * attachment与第(3)步的attr很相似，在后续多路复用器 轮询到事件就绪的SelectionKey时，通过k.attachment获取。当出现 超时或链路未中断
+ * 或移除时，JVM不会回收此附件。注册成功后，会调 用 DefaultChannelPipeline 的 callHandlerAddedForAllHandlers() 方 法，此方法会执
+ * 行PendingHandlerCallback回调任务，回调原来在没 有注册之前添加的Handler。此处有点难以理解，在注册之前，先运行 了
+ * Pipeline的addLast()方法。DefaultChannelPipeline的addLast() 方法的部分代码如下:
+ *
+ * 5. 注 册 成 功 后 会 触 发 ChannelFutureListener 的 operationComplete()方法，此方法会带上主线程的ChannelPromise参 数 ，
+ *  然 后 调 用 AbstractChannel.bind() 方 法 ; 再 执 行 NioServerSocketChannel的doBind()方法绑定端口;当绑定成功后，
+ *  会触发active事件，为注册到Selector上的ServerSocket Channel加 上监听OP_ACCEPT事件;最终运行ChannelPromise的safeSetSuccess()
+ *  方法唤醒server Bootstrap.bind(port).sync()。
+ *
+ * 以上5步是对图5-2进行的详细说明，Netty服务的启动过程看起来 涉及的类非常多，而且很多地方涉及多线程的交互(有主线程，还有 EventLoop线程)。
+ * 但由于NioServerSocketChannel通道绑定了一条 NioEventLoop线程，而这条NioEventLoop线程上开启了Selector多路 复用器，因此这些主要步
+ * 骤的具体完成工作都会交给NioEventLoop线 程，主线程只需完成协调和初始化工作即可。主线程通过 ChannelPromise获取NioEventLoop线程的执
+ * 行结果。这里有两个问题 需要额外思考。
+ *
+ * 1. ServerSocketChannel在注册到Selector上后为何要等到绑定端 口才设置监听OP_ACCEPT事件?提示:跟Netty的事件触发模型有关。
+ * 2. NioServerSocketChannel 的 Handler 管 道 DefaultChannelPipeline是如何添加Handler并触发各种事件的?
+ *
+ * 这两个问题与Netty的架构设计有很大的关系，对于初学者来说， 有一定的难度，一定要跟着图5-2及以上5步多看几遍源码，多加思 考。
+ *
  *
  */
 public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerChannel> {
@@ -232,6 +290,9 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
 
         @Override
         @SuppressWarnings("unchecked")
+        // 在ServerBootstrapAcceptor的channelRead()方法中，把 NioSocketChannel注册到Worker线程上，同时绑定Channel的Handler 链。
+        // 这与5.1节中将NioServerSocketChannel注册到Boss线程上类似， 代码流程基本上都一样，只是实现的子类不一样，如后续添加的事件
+        // 由OP_ACCEPT换成了OP_READ。通过这一步的分析，读者可以思考， Netty为何要把Channel抽象化?
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
             final Channel child = (Channel) msg;
 

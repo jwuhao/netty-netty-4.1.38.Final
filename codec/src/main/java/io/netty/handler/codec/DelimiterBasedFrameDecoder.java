@@ -56,6 +56,7 @@ import java.util.List;
  * | ABC\nDEF |
  * +----------+
  * </pre>
+ * 找到ByteBuf中是否有对应的特殊字 符，若有，则截断读取对应的消息;
  */
 public class DelimiterBasedFrameDecoder extends ByteToMessageDecoder {
 
