@@ -16,23 +16,33 @@
 
 package io.netty.buffer;
 
+/***
+ * PoolSubpage是由PoolChunk的page生成的，page可以生成多种 PoolSubpage，但一个page只能生成其中一种PoolSubpage。 PoolSubpage可以分为很多段，
+ * 每段的大小相同，且由申请的内存大小 决定。在讲解PoolSubpage具体分配内存之前，先看看它的重要属性
+ *
+ *
+ * 由于PoolSubpage每段的最小值为16B，因此它的段的总数量最多 为pageSize/16。把PoolSubpage中每段的内存使用情况用一个long[] 数组来标识，
+ * long类型的存储位数最大为64B，每一位用0表示为空闲 状态，用1表示被占用，这个数组的长度为pageSize/16/64B，默认情 况下，long数组的长度
+ * 最大为8192/16/64B=8B。每次在分配内存时， 只需查找可分配二进制的位置，即可找到内存在page中的相对偏移 量，图6-7为PoolSubpag的内存段分配实例。
+ *
+ */
 final class PoolSubpage<T> implements PoolSubpageMetric {
 
-    final PoolChunk<T> chunk;
-    private final int memoryMapIdx;
-    private final int runOffset;
-    private final int pageSize;
-    private final long[] bitmap;
+    final PoolChunk<T> chunk;       // 当前分配内存的chunk
+    private final int memoryMapIdx; // 当前page在chunk的memoryMap中的下标 id
+    private final int runOffset;    // 当page 在chunk的memory上的偏移量
+    private final int pageSize;     // page的大小 ，默认是8192
+    private final long[] bitmap;    // poolSubpage每段内存的占用状态，采用二进制位来标识
 
-    PoolSubpage<T> prev;
-    PoolSubpage<T> next;
+    PoolSubpage<T> prev;            // 指向前一个PoolSubpage
+    PoolSubpage<T> next;            // 指向后一个PoolSubpage
 
     boolean doNotDestroy;
-    int elemSize;
-    private int maxNumElems;
-    private int bitmapLength;
-    private int nextAvail;
-    private int numAvail;
+    int elemSize;                   // 切分后每段的大小
+    private int maxNumElems;        // 段的总数量
+    private int bitmapLength;       // 实际采用二进制位标识的long数组的长度值，根据每段大小elmentSize 和pageSize业计算得来的
+    private int nextAvail;          // 下一个可用的位置
+    private int numAvail;           // 可用的段的数量
 
     // TODO: Test if adding padding helps under contention
     //private long pad0, pad1, pad2, pad3, pad4, pad5, pad6, pad7;
@@ -76,6 +86,12 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
 
     /**
      * Returns the bitmap index of the subpage allocation.
+     *
+     * 由于PoolSubpage每段的最小值为16B，因此它的段的总数量最多 为pageSize/16。把PoolSubpage中每段的内存使用情况用一个long[] 数组来标识，
+     * long类型的存储位数最大为64B，每一位用0表示为空闲 状态，用1表示被占用，这个数组的长度为pageSize/16/64B，默认情 况下，
+     * long数组的长度最大为8192/16/64B=8B。每次在分配内存时， 只需查找可分配二进制的位置，即可找到内存在page中的相对偏移 量，图6-7为PoolSubpag的内存段分配实例。
+     *
+     *
      */
     long allocate() {
         if (elemSize == 0) {
@@ -86,17 +102,17 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
             return -1;
         }
 
-        final int bitmapIdx = getNextAvail();
-        int q = bitmapIdx >>> 6;
-        int r = bitmapIdx & 63;
-        assert (bitmap[q] >>> r & 1) == 0;
-        bitmap[q] |= 1L << r;
+        final int bitmapIdx = getNextAvail();                   // 获取PoolSubpage下一个可用的位置
+        int q = bitmapIdx >>> 6;                                // 获取该位置的bitmap数组对应的下标值
+        int r = bitmapIdx & 63;                                 // 获取bitmap[q]上实际可用的位
+        assert (bitmap[q] >>> r & 1) == 0;                      // 确定该位没有被占用
+        bitmap[q] |= 1L << r;                                   // 将该位设为1，表示已经被占用，此处 1L << r 表示将r 设置为1
 
-        if (-- numAvail == 0) {
+        if (-- numAvail == 0) {                                 // 若没有可用的段，则说明此page/PoolSubpage已经分配满了， 没有必要oxxfyt到PoolArena池，应该从Pool 中移除
             removeFromPool();
         }
 
-        return toHandle(bitmapIdx);
+        return toHandle(bitmapIdx);                             // 把当前page的索引和PoolSubPage 的索引一起返回低32位表示page的index，高32位表示PoolSubPage的index
     }
 
     /**
@@ -107,29 +123,29 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
         if (elemSize == 0) {
             return true;
         }
-        int q = bitmapIdx >>> 6;
-        int r = bitmapIdx & 63;
-        assert (bitmap[q] >>> r & 1) != 0;
-        bitmap[q] ^= 1L << r;
+        int q = bitmapIdx >>> 6;                            // 由于long型 是64位，因此除了64 就是long[] bitmap的下标
+        int r = bitmapIdx & 63;                             // 找到bitmap[q]对应的位置
+        assert (bitmap[q] >>> r & 1) != 0;                  // 判断当前位是否为已经分配状态
+        bitmap[q] ^= 1L << r;                               // 把bitmap[q] 的 r 位设置为0，表示未分配
 
-        setNextAvail(bitmapIdx);
+        setNextAvail(bitmapIdx);                            // 将该位置设置为下一个可用的位置，这也是在分配时会发生nextAvail大于0的情况
 
-        if (numAvail ++ == 0) {
+        if (numAvail ++ == 0) {         // 若之前没有可分配的内存，从池中移除了， 则将PoolSubpage继续添加到Arena的缓存池中，以便下回分配
             addToPool(head);
             return true;
         }
-
+        // 若还没有被释放的内存，则直接返回
         if (numAvail != maxNumElems) {
             return true;
         } else {
-            // Subpage not in use (numAvail == maxNumElems)
+            // Subpage not in use (numAvail == maxNumElems)  若内存全部被释放了，且池中没有其他的PoolSubpage，则不从池中移除，直接返回
             if (prev == next) {
                 // Do not remove if this subpage is the only one left in the pool.
                 return true;
             }
 
             // Remove this subpage from the pool if there are other subpages left in the pool.
-            doNotDestroy = false;
+            doNotDestroy = false;               // 若逊尼中还有其他的节点，且当前节点内存已经全部被释放，则从池中移除，并返回false , 对其上的page也会进行相应的回收
             removeFromPool();
             return false;
         }
@@ -155,20 +171,23 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
         nextAvail = bitmapIdx;
     }
 
-    private int getNextAvail() {
-        int nextAvail = this.nextAvail;
+    private int getNextAvail() {                // 查找下一个可用的位置
+        int nextAvail = this.nextAvail;         // 若下一个可用的位置大于或等于0 ， 则说明是每一次分配或正好已经有内存回收，可直接返回
         if (nextAvail >= 0) {
-            this.nextAvail = -1;
+            this.nextAvail = -1;                // 每次分配完内存后，都要将nextAvail 设置为-1
             return nextAvail;
         }
+        // 没有直接可用内存，需要继续查找
         return findNextAvail();
     }
 
     private int findNextAvail() {
         final long[] bitmap = this.bitmap;
         final int bitmapLength = this.bitmapLength;
+        // 遍历用来标识内存是否被占用的数组
         for (int i = 0; i < bitmapLength; i ++) {
             long bits = bitmap[i];
+            // 若当前long型的标识位不全为1，则表示其中有未被使用的内存
             if (~bits != 0) {
                 return findNextAvail0(i, bits);
             }
@@ -178,10 +197,11 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
 
     private int findNextAvail0(int i, long bits) {
         final int maxNumElems = this.maxNumElems;
+        // i 表示 bitMap的位置，由于bitmap 每个值有64位 ， 因此用i * 64 来表示bitmap[i]的第一wugdPoolSubpage中的偏移量
         final int baseVal = i << 6;
 
         for (int j = 0; j < 64; j ++) {
-            if ((bits & 1) == 0) {
+            if ((bits & 1) == 0) {                      // 判断第一位是否为0，为0表示该位空闲
                 int val = baseVal | j;
                 if (val < maxNumElems) {
                     return val;
@@ -189,11 +209,12 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
                     break;
                 }
             }
-            bits >>>= 1;
+            bits >>>= 1;                                // 若bits的第一位不为0 ， 则继续右移一位， 判断第二位
         }
-        return -1;
+        return -1;                              // 如果没有找到，则返回-1
     }
 
+    // 反当前page 的索引和PoolSubpage的索引一起返回 , 低32位表示page 的index ，高32位表示Poolsubpage的index
     private long toHandle(int bitmapIdx) {
         return 0x4000000000000000L | (long) bitmapIdx << 32 | memoryMapIdx;
     }

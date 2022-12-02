@@ -137,6 +137,12 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
         // 如果本次 循环没有读到数据或链路已关闭，则跳出循环。另外，当循环次数达 到属性METADATA的defaultMaxMessagesPerRead次数(默认为16)时，
         // 也会跳出循环。由于TCP传输会产生粘包问题，因此每次读取都会触发 channelRead事件，进而调用业务逻辑处理Handler。
         // 3. 跳出循环后，表示本次读取已完成。调用allocHandle的 readComplete()方法，并记录读取记录，用于下次分配合理内存。
+
+        // NioEventLoop线程在处理OP_READ事件，进入NioByteUnsafe循环 读取数据时，使用了两个类来处理内存的分配:一个是 ByteBufAllocator，
+        // PooledByteBufAllocator为它的默认实现类;另 一个是RecvByteBufAllocator，AdaptiveRecvByteBufAllocator是它 的默认实现类，
+        // 在DefaultChannelConfig初始化时设置。 PooledByteBufAllocator主要用来处理内存的分配，并最终委托 PoolArena去完成。
+        // AdaptiveRecvByteBufAllocator主要用来计算每次 读循环时应该分配多少内存。NioByteUnsafe之所以需要循环读取，主 要是因为分配
+        // 的初始ByteBuf不一定能够容纳读取到的所有数据。 NioByteUnsafe循环读取的核心代码解读如下:
         public final void read() {
             // 获取pipeline通道配置，Channel管道
             final ChannelConfig config = config();
@@ -148,6 +154,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
             final ChannelPipeline pipeline = pipeline();
             // 获取内存分配器，默认为PooledByteBufAllocator
             final ByteBufAllocator allocator = config.getAllocator();
+            // 获取RecvByteBufAllocator内部的计算器Handle
             final RecvByteBufAllocator.Handle allocHandle = recvBufAllocHandle();
             // 清空上一次读取的字节数，每次读取时均重新计算
             // 字节buf分配器， 并计算字节buf分配器Handler
@@ -157,9 +164,9 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
             boolean close = false;
             try {
                 do {
-                    // 分配内存
+                    // 分配内存 ,allocator根据计算器Handle计算此次需要分配多少内存并从内存池中分配
                     byteBuf = allocHandle.allocate(allocator);
-                    // 读取通道接收缓冲区的数据
+                    // 读取通道接收缓冲区的数据 ， 设置最后一次分配内存大小加上每次读取的字节数
                     allocHandle.lastBytesRead(doReadBytes(byteBuf));
                     if (allocHandle.lastBytesRead() <= 0) {
                         // nothing was read. release the buffer.
@@ -182,7 +189,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                     pipeline.fireChannelRead(byteBuf);
                     byteBuf = null;
                 } while (allocHandle.continueReading());
-                // 读取操作完毕
+                // 读取操作完毕 ，读结束后调用，记录此次实际读取到的数据大小，并预测下一次内存分配大小
                 allocHandle.readComplete();
                 // 触发Channel管道的fireChannelReadComplete事件
                 pipeline.fireChannelReadComplete();

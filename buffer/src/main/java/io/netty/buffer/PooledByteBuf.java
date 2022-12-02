@@ -251,6 +251,7 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
         recyclerHandle.recycle(this);
     }
 
+    // 通过offset获取使用内存的初始位置
     protected final int idx(int index) {
         return offset + index;
     }
@@ -333,11 +334,17 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
 
     /**
      *  从channel 中读取数据并写入PooledByteBuf中
-     *  writeIndex由父类AbstractByteBuf 的writeBytes()方法维护
+     *  writeIndex由父类AbstractByteBuf 的writeBytes()方法维护 ,
+     *
+     * 通过上述代码解读可知，当内存空间在PoolSubpage中分配成功 后，可以得到一个指针handle。而Netty上层只会运用ByteBuf，那么 ByteBuf是如何跟handle关联的呢?
+     * 通过handler可以计算page的偏移量，也可以计算subpage的段在 page中的相对偏移量，两者加起来就是该段分配的内存在chunk中的相 对位置偏移量。当PoolByteBuf从Channel中读取数据时，
+     * 需要用这个 相对位置偏移量来获取ByteBuffer。PoolByteBuf从原Buffer池中通过 duplicate()方法在不干扰原来Buffer索引的情况下，与其共享缓冲区 数据，复制一份新的ByteBuffer，
+     * 并初始化新ByteBuffer的元数据， 通过offset指定读/写位置，用limit来限制读/写范围。
      */
     @Override
     public final int setBytes(int index, ScatteringByteChannel in, int length) throws IOException {
         try {
+            // 从NioSocketChannel 中读取的请求数据，并将写入PoolByteBuf中
             return in.read(internalNioBuffer(index, length));
         } catch (ClosedChannelException ignored) {
             // 客户端主动关闭连接，返回-1，触发对应的用户事件

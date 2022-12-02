@@ -25,6 +25,16 @@ import static io.netty.util.internal.ObjectUtil.checkNotNull;
 /**
  * Allocates a new receive buffer whose capacity is probably large enough to read all inbound data and small enough
  * not to waste its space.
+ * RecvByteBufAllocator内存分配计算
+ *
+ *
+ * 虽然了解了Netty整个内存池管理的细节(包括它的内存分配的具 体逻辑)，但是每次在从NioSocketChannel中读取数据时，应该分配 多少内存去读呢?
+ * 例如，客户端发送的数据为1KB，若每次都分配8KB 的内存去读取数据，则会导致内存大量浪费;若分配16B的内存去读取 数据，那么需要64次才能全部读完，
+ * 对性能有很大的影响。那么对于 这个问题，Netty是如何解决的呢?
+ *
+ *
+ *RecvByteBufAllocator 的 默 认 实 现 类 AdaptiveRecvByteBufAllocator是实际的缓冲管理区，这个类可以根 据读取到的数据预测所需字节的多少，
+ * 从而自动增加或减少;如果上 一次读循环将缓冲区填充满了，那么预测的字节数会变大。如果连续 两次读循环都不能填满已分配的缓冲区，则预测的字节数会变小。
  */
 public interface RecvByteBufAllocator {
     /**

@@ -95,11 +95,15 @@ final class PoolChunkList<T> implements PoolChunkListMetric {
         return false;
     }
 
+    // PoolChunkList的free()方法
     boolean free(PoolChunk<T> chunk, long handle, ByteBuffer nioBuffer) {
+        // 先调用chunk的free()方法，把内存标记为已经释放
         chunk.free(handle, nioBuffer);
         if (chunk.usage() < minUsage) {
+            // 若内存利用率小于minUsage , 则从此需要把PoolChunk 从当前PoolChunkList   中移除
             remove(chunk);
             // Move the PoolChunk down the PoolChunkList linked-list.
+            // 把移除的PoolChunk移到到前一个PoolChunkList中
             return move0(chunk);
         }
         return true;
@@ -121,14 +125,17 @@ final class PoolChunkList<T> implements PoolChunkListMetric {
     /**
      * Moves the {@link PoolChunk} down the {@link PoolChunkList} linked-list so it will end up in the right
      * {@link PoolChunkList} that has the correct minUsage / maxUsage in respect to {@link PoolChunk#usage()}.
+     *
      */
     private boolean move0(PoolChunk<T> chunk) {
+        // 在当前PoolChunkList为q000时，直接物理释放
         if (prevList == null) {
             // There is no previous PoolChunkList so return false which result in having the PoolChunk destroyed and
             // all memory associated with the PoolChunk will be released.
             assert chunk.usage() == 0;
             return false;
         }
+        // 把PoolChunk移到到前面的PoolChunkList中
         return prevList.move(chunk);
     }
 
@@ -157,17 +164,18 @@ final class PoolChunkList<T> implements PoolChunkListMetric {
         }
     }
 
+    // 从PoolChunk链表中移除
     private void remove(PoolChunk<T> cur) {
-        if (cur == head) {
-            head = cur.next;
+        if (cur == head) {                     // 若当前chunk为PoolChunkList的第一个
+            head = cur.next;                // 把chunk的下一个元素变成 PoolChunkList的第一个元素
             if (head != null) {
                 head.prev = null;
             }
-        } else {
+        } else {                        // 修改指针的指向
             PoolChunk<T> next = cur.next;
-            cur.prev.next = next;
-            if (next != null) {
-                next.prev = cur.prev;
+            cur.prev.next = next;                   // 把chunk前面的chunk的next指针指向当前chunk的next
+            if (next != null) {                     // 若当前chunk的下一个chunk不为空
+                next.prev = cur.prev;                   // 则把当前chunk的下下个chunk的prev指针从当前chunk改成当前chunk的前一个元素
             }
         }
     }

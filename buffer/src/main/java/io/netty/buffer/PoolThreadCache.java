@@ -37,6 +37,42 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * technics of
  * <a href="https://www.facebook.com/notes/facebook-engineering/scalable-memory-allocation-using-jemalloc/480222803919">
  * Scalable memory allocation using jemalloc</a>.
+ *
+ * 6.1 Netty内存管理策略介绍
+ *  为了提高内存的使用效率，Netty引入了jemalloc内存分配算法。 Netty内存管理层级结构如图6-1所示，其中右边是内存管理的3个层 级，
+ *  分别是本地线程缓存、分配区arena、系统内存;左边是内存块区 域，不同大小的内存块对应不同的分配区，总体的分配策略如下。
+ *
+ * 1. 为了避免线程间锁的竞争和同步，每个I/O线程都对应一个 PoolThreadCache，负责当前线程使用非大内存的快速申请和释放。
+ * 2. 当从PoolThreadCache中获取不到内存时，就从PoolArena的内 存池中分配。当内存使用完并释放时，会将其放到PoolThreadCache 中，
+ * 方便下次使用。若从PoolArena的内存池中分配不到内存，则从堆 内外内存中申请，申请到的内存叫PoolChunk。当内存块的大小默认为 12MB时，
+ * 会被放入PoolArea的内存池中，以便重复利用。当申请大内 存时(超过了PoolChunk的默认内存大小12MB)，直接在堆外或堆内内 存中创建
+ * (不归PoolArea管理)，用完后直接回收。本书只介绍Netty 的内存池可重复利用的内存。
+ *
+ * Netty内存分配思维导图如图6-2所示。
+ * 1. Netty在具体分配内存之前，会先获取本次内存分配的大 小。具体的内存分配由PoolArena统一管理，先从线程本地缓存 PoolThreadCache中获取，
+ * 线程本地缓存采用固定长度队列缓存此线程 之前用过的内存。
+ * 2. 若本地线程无缓存，则判断本次需要分配的内存大小，若小 于512B，则先从PoolArena的tinySubpagePools缓存中获取;若大于或 等于512B且小于8KB，
+ * 则先从smallSubpagePools缓存中获取，上述两 种情况缓存的对象都是PoolChunk分配的PoolSubpage;若大于或等于 8KB或在SubpagePools缓存中分配失败，
+ * 则从PoolChunkList中查找可 分配的PoolChunk。
+ * 3. 若PoolChunkList分配失败，则创建新的PoolChunk，由 PoolChunk完成具体的分配工作，最终分配成功后，加入对应的 PoolChunkList中。
+ * 若分配的是小于8KB的内存，则需要把从PoolChunk 中分配的PoolSubpage加入PoolArena的SubpagePools中。
+ * 图6-2 Netty内存分配思维导图
+ *
+ *                 |----> 内存大小分配计算
+ *                 |                                   |----->PoolThreadCache(线程本地缓存)------> MemoryRegionCache-------> Queue<Entry<<T>> queue
+ *                 |                                   |
+ *                 |                                   | ----> PoolSubpage（小于或等于512B内存分配缓存区）
+ *                 |                                   |
+ *                 |                                   |-----> PoolSubpage（大于或等于512B且小于8KB内存分配缓存区）
+ * 内存分配 ------> |----> PoolArena(内存分配器)----->   |
+ *                 |                                   |------> PoolChunkList q050 ---->PoolChunk-------->PoolSubpage
+ *                 |                                   |
+ *                 |                                   |------> PoolChunkList q051
+ *                 |                                   |
+ *                 |                                   |------> PoolChunkList q052
+ *
+ *
+ *
  */
 final class PoolThreadCache {
 
