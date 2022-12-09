@@ -23,16 +23,19 @@ import java.util.concurrent.TimeUnit;
  * The result of an asynchronous operation.
  */
 @SuppressWarnings("ClassNameSameAsAncestorName")
+// Netty 也对Java Future 接口进行了扩展，并且名称没有变，还是叫Future接口， 代码实现位于 io.netty.util.concurrent包中
 public interface Future<V> extends java.util.concurrent.Future<V> {
 
     /**
      * Returns {@code true} if and only if the I/O operation was completed
      * successfully.
+     * 判断异步执行是否成功
      */
     boolean isSuccess();
 
     /**
      * returns {@code true} if and only if the operation can be cancelled via {@link #cancel(boolean)}.
+     * 判断异步执行是否取消
      */
     boolean isCancellable();
 
@@ -43,6 +46,7 @@ public interface Future<V> extends java.util.concurrent.Future<V> {
      * @return the cause of the failure.
      *         {@code null} if succeeded or this future is not
      *         completed yet.
+     * 获取异步任务异步的原因
      */
     Throwable cause();
 
@@ -51,6 +55,7 @@ public interface Future<V> extends java.util.concurrent.Future<V> {
      * specified listener is notified when this future is
      * {@linkplain #isDone() done}.  If this future is already
      * completed, the specified listener is notified immediately.
+     *  增加了异步任务执行完成与否的监听器Listener
      */
     Future<V> addListener(GenericFutureListener<? extends Future<? super V>> listener);
 
@@ -68,6 +73,7 @@ public interface Future<V> extends java.util.concurrent.Future<V> {
      * future is {@linkplain #isDone() done}.  If the specified
      * listener is not associated with this future, this method
      * does nothing and returns silently.
+     *  移除异步任务执行完成与否的监听器Listener
      */
     Future<V> removeListener(GenericFutureListener<? extends Future<? super V>> listener);
 

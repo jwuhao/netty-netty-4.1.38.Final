@@ -45,6 +45,17 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 
 /**
  * Base class for {@link Channel} implementations that are used in an embedded fashion.
+ * EmbeddedChannel 嵌入式通道
+ * 在Netty 的实际开发中，通信的基础工作，Netty已经替大家完成，实际上，大量的工作是设计和开发ChannelHandler通道业务处理器，而不是开发Outbound
+ * 出站处理器，换句话说， 就是开发Inbound 入站处理器，开发完成后，需要投入单元测试，单元测试的大致流程是，需要将Handler业务处理器加入到通道的
+ * Pipeline流水线中，接下来，先后启动Netty 服务器，客户端程序，相互发送消息，测试业务处理器的效果，如果每开发一个业务处理器，都进行 服务器和客户端的重复启动。
+ * 这整个的过程是非学烦琐和浪费时间的， 如何解决这种徒劳的，低效率的重复工作呢？
+ * Netty 提供了一个专用的通道，名字EmbeddedChannel 嵌入式通道 。
+ * EmbeddedChannel仅仅是模拟入站与出站的操作，底层不进行实际传输，不需要启动Netty服务器和客户端，除了不进行传输之外 ，EmbeddedChannel
+ * 的其他的事件机制和处理流程中真正的传输通道是一模一样的， 因此，使用它，开发人员可以在开发的过程中方便，快速的进行ChannelHandler业务处理器的单元测试 。
+ * 为了模拟数据的发送和接收，EmbeededChannel 提供了一组专门的方法，具体如表6-1所示
+ *
+ *
  */
 public class EmbeddedChannel extends AbstractChannel {
 
@@ -302,6 +313,7 @@ public class EmbeddedChannel extends AbstractChannel {
 
     /**
      * Return received data from this {@link Channel}
+     * 从EmbeddedChannel中读取取入站数据，返回经过流水线最后一个入站处理器处理完成之后的入站数据，如果没有数据，则返回null
      */
     @SuppressWarnings("unchecked")
     public <T> T readInbound() {
@@ -314,6 +326,15 @@ public class EmbeddedChannel extends AbstractChannel {
 
     /**
      * Read data from the outbound. This may return {@code null} if nothing is readable.
+     * readOutbound(...) 从EmbeddedChannel中读取出站数据，返回经过流水线最后一个出站处理器处理之后的出站数据，如果没有数据，则返回null
+     *
+     *
+     * 它的使用场景是，测试出站处理器，在测试出站处理器时，例如测试一个编码器， 需要查看处理过的结果数据，可以调用readOutBound方法 。
+     * 读取通道的最终的出站结果，它是经过流水线的一系列的出站数据包，比较绕器的，重复一次，通过readOutbound，可以读取完成EmbeddedChannel
+     * 的最后一个出站处理器，处理完之后 ， ByteBuf 二进制出站包。
+     * 总之， 这个EmbeddedChannel类这， 既具备通道的通用接口和方法 ，又增加了一些单元测试的辅助方法 ，在开发的非常有用。 它具体用法
+     * 在后面还会结合其他的Netty 组件的实例反复提到 。
+     *
      */
     @SuppressWarnings("unchecked")
     public <T> T readOutbound() {
@@ -330,6 +351,15 @@ public class EmbeddedChannel extends AbstractChannel {
      * @param msgs the messages to be written
      *
      * @return {@code true} if the write operation did add something to the inbound buffer
+     * 向通道写入inbound入站数据，模拟通道的数据，也就是说，这些写入的数据会被流水线上的入詀处理器处理。
+     *
+     * 它的使用场景是，测试入站入理器， 在测试入站处理器时，例如 测试一个解码器， 需要读取Inbound 入站数据，可以调用witeInbound方法
+     * 向EmbeddedChannel 写入一个入站二进制ByteBuf数据包，模拟底层的入站包 。
+     *
+     *
+     *
+     *
+     *
      */
     public boolean writeInbound(Object... msgs) {
         ensureOpen();
@@ -393,6 +423,7 @@ public class EmbeddedChannel extends AbstractChannel {
      *
      * @param msgs              the messages to be written
      * @return bufferReadable   returns {@code true} if the write operation did add something to the outbound buffer
+     * 向通道写入outBound出站数据，模拟通道发送的数据，也就是说，这些写入的数据会被流水线上的出站处理器处理。
      */
     public boolean writeOutbound(Object... msgs) {
         ensureOpen();
@@ -477,6 +508,7 @@ public class EmbeddedChannel extends AbstractChannel {
      * Mark this {@link Channel} as finished. Any further try to write data to it will fail.
      *
      * @return bufferReadable returns {@code true} if any of the used buffers has something left to read
+     * 结束EmbeddedChannel , 它会调用通道的close()方法
      */
     public boolean finish() {
         return finish(false);

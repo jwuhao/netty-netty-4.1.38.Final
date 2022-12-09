@@ -161,6 +161,10 @@ import java.util.concurrent.TimeUnit;
  *     // Connection established successfully
  * }
  * </pre>
+ *
+ *
+ *  Netty的Future接口一般不会直接使用，而是会使用子接口， Netty 有一系列的子接口，代表不同的类型的异步任务，如ChannelFuture接口
+ *  ChannelFuture子接口表示通道IO操作的异步任务，如果在通道的异步IO操作完成后，需要执行回调操作，就需要使用到ChannelFuture接口。
  */
 public interface ChannelFuture extends Future<Void> {
 

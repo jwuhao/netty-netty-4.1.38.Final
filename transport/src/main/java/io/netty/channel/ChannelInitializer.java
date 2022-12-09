@@ -49,8 +49,29 @@ import java.util.concurrent.ConcurrentHashMap;
  * Be aware that this class is marked as {@link Sharable} and so the implementation must be safe to be re-used.
  *
  * @param <C>   A sub-type of {@link Channel}
+ *
  */
+
+
 @Sharable
+// 通道初始化处理器
+// 在前面已经讲到了， 通道和Handler业务处理器的关系是： 一条Netty 通道拥有一条Handler业务处理器流水线，负责装配自己的Handler 业务处理器
+// 装配Handler 的工作 ，发生在通道开始工作前，现在的问题， 如果向流水线中装配业务处理器呢？这就得借助通道的初始化类ChannelInitializer
+// 首先回顾一下， NettyDiscardServer 丢弃服务端的代码，在给挠痒痒痒痒立决眰新连接装配Handler业务处理器时，使用childHandler 方法去设置了一个ChannelInitializer实例。
+//  5. 装配子通道流水线
+// b.childHandler(new ChannelInitializer<SocketChannel>(){
+//      //有连接到达时会创建一个通道
+//      protected void initChannel(SocketChannel ch )throws Exception{
+//          //流水线管理子通道中的Handler业务处理器
+//          // 向子通道流水线添加一个Handler业务处理器
+//          ch.pipeline().addLast(new NettyDiscardHandler());
+//      }
+// });
+// 上面ChannelInitializer也是通过初始化器，属于入站处理器的类型，在示例代码中，使用了ChannelInitializer的initChannel()方法，它是何
+// 方神圣呢？
+// initChannel()方法是ChannelInitializer定义了一个抽象方法，这个抽象方法需要开发人员自己实现，在父通道调用initChannel()方法时  。
+// 会将新会将新接收的通道作为参数，传递给initChannel()方法，initChannel()方法内部大致的业务代码是，：便捷到新连接通道作为实际参数
+// 往它的流水线中装配Handler 业务处理器。
 public abstract class ChannelInitializer<C extends Channel> extends ChannelInboundHandlerAdapter {
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(ChannelInitializer.class);

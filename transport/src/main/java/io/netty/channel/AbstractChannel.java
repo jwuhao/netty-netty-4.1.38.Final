@@ -43,11 +43,16 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(AbstractChannel.class);
 
-    private final Channel parent;
+    // AbstractChannel内部有一个parent属性， 表示通道的父通道，对于连接监听通道（如NioServerSocketChannel 实例）来说，其父亲通道的null
+    // 而对于每一条传输通道，(如NioSocketChannel实例)，其parent属性的值为接收到该连接的服务器连接的监听通道 。
+    private final Channel parent;               // 父通道
     private final ChannelId id;
     // 实现具体的连接与读/写数据，如网络的读/写，链路关闭，发起连接等，命名为Unsafe表示不对外提供使用，并非不安全
     private final Unsafe unsafe;
     // 一个Handler容器，也可以将其理解为一个Handler链，Handler 主要处理数据的编/解码业务逻辑
+    // AbstractChannel内部有一个pipeline属性，表示处理器的流水线， Netty在对通道进行初始化的时候，将pipeline属性初始化为DefaultChannelPipeline
+    // 的实例， 这段代码也表明，每个通道拥有一条ChannelPipeline处理器流水线 。
+    //
     private final DefaultChannelPipeline pipeline;
     private final VoidChannelPromise unsafeVoidPromise = new VoidChannelPromise(this, false);
     private final CloseFuture closeFuture = new CloseFuture(this);
@@ -71,10 +76,10 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
      *        the parent of this channel. {@code null} if there's no parent.
      */
     protected AbstractChannel(Channel parent) {
-        this.parent = parent;
+        this.parent = parent;                           // 父通道
         id = newId();
-        unsafe = newUnsafe();
-        pipeline = newChannelPipeline();
+        unsafe = newUnsafe();                           // 底层的NIO通道，完成的实际的IO操作
+        pipeline = newChannelPipeline();                // 一条通道，拥有一条流水线
     }
 
     /**
@@ -210,11 +215,14 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
     }
 
     @Override
+    // 此方法的作用为：绑定监听的地址，开始监听新的客户端连接，此方法在服务器的新连监听和接收通道使用
     public ChannelFuture bind(SocketAddress localAddress) {
         return pipeline.bind(localAddress);
     }
 
     @Override
+    // 此方法的作用为：连接远程服务器，方法的参数为远程服务器的地址，调用后会立即返回，返回值为负责连接操作的异步任务 ChannelFuture，此方法
+    // 在客户端的传输通道中使用
     public ChannelFuture connect(SocketAddress remoteAddress) {
         return pipeline.connect(remoteAddress);
     }
@@ -230,6 +238,8 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
     }
 
     @Override
+    // 此方法的作用为： 关闭通道连接，返回连接关闭的ChannelFuture异步任务，如果需要在连接正式关闭后执行其他操作，则需要为异步任务设置回调方法
+    // 或者调用ChannelFuture异步任务sync()方法来阻塞当前线程，一直等到通道关闭的异步任务执行完毕 。
     public ChannelFuture close() {
         return pipeline.close();
     }
@@ -240,6 +250,8 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
     }
 
     @Override
+    // 此方法的作用为：将缓冲区中的数据立即写到对端，并不是每一次write操作都将数据直接写出到对端，write操作的作用是大部分情况下仅仅是写入操作系统的缓冲区， 操作系统会根据缓冲区的
+    // 情况，决定什么什么时候会把数据写入到对端，而执行flush()方法立即将缓冲区的数据写到对端。
     public Channel flush() {
         pipeline.flush();
         return this;
@@ -276,12 +288,15 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
     }
 
     @Override
+    // 此方法的作用为：读取通道数据，并且启动入站处理，具体来说，从内部的Java NIO Channel 通道读取数据，然后启动内部的Pipeline流水线
+    // 开启数据读取的入站处理，此方法的返回通道自身用于链式调用
     public Channel read() {
         pipeline.read();
         return this;
     }
 
     @Override
+    // 此方法的作用为：启动出站流水线处理，把处理后的最终数据写到底层Java NIO通道，此方法的返回值为出站处理的异步处理任务 。
     public ChannelFuture write(Object msg) {
         return pipeline.write(msg);
     }
