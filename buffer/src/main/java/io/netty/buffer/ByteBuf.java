@@ -270,11 +270,62 @@ import java.nio.charset.UnsupportedCharsetException;
  * 并设计了内存池。内存池是由一定大小和数 量的内存块ByteBuf组成的，这些内存块的大小默认为16MB。当从 Channel中读取数据时，无须每次都分配新的ByteBuf，
  * 只需从大的内 存块中共享一份内存，并初始化其大小及独立维护读/写指针即可。 Netty采用对象引用计数，需要手动回收。每复制一份ByteBuf或派生 出新的ByteBuf，其引用值都需要增加。
  *
+ *
+ *
+ *  Netty 提供了ByteBuf 来替代Java NIO 的ByteBuffer缓冲区，以操作内存缓冲区
+ * ByteBuf 的优势
+ *与Java NIO 的ByteBuffer相比，ByteBuf 的优势如下
+ * Pooling(池化，这点减少了内存的复制和GC，提升了效率  )
+ * 复合缓冲区类型，支持零复制
+ * 不需要调用flip()方法去切换读/写模式
+ * 扩展性好，例如StringBuffer
+ * 可以自定义缓冲类型 。
+ * 读和写入索引分开
+ * 方法的链式调用
+ * 可以进行引用计数计数， 方便重复使用
+ *
+ *                              ByteBuf
+ *                              内部数组
+ *  {--------第一部分-----------第二部分----------第三部分-------第四部分-----}
+ *  {---------废弃--------------可读--------------可写----------可扩容 -----}
+ * ByteBuf的逻辑部分，ByteBuf 是一个字节容器，内部是一个字节数组，逻辑上来分，字节容器内部可以分为四个部分，具体如下 6-14所示
+ * 第一部分是已用字节，表示已经使用完的废弃的无效字节，第二部分是可读字节，这部分数据是ByteBuf 保存的有效数据，从ByteBuf 中读取
+ * 的数据都来自这一部分，第三部分是可写字节 ，写到ByteBuf的数据都会写到这一部分，第四部分是，可扩容字节，表示的是该ByteBuf 最多还能扩容的大小
+ *
+ *  ByteBuf 的重要属性。
+ *      ByteBuf通过三个整形的属性有效的区分可读数据和可写数据，使得读之间相互没有冲突。 这三个属性定义在AbstractByteBuf 抽象类中， 分别是
+ * readerIndex(读指针 )
+ * writerIndex(写指针)
+ * maxCapacity(最大容量)
+ *
+ * ByteBuf 的三个重要属性，如图6-15所示
+ *
+ * readerIndex(读指针)：指示读取的起始位置，每读取一个字节，readerIndex自动增加，一旦readerIndex与writerIndex相等， 则表示ByteBuf 不可读了
+ * writerIndex(写指针)：指示写入的起始位置，每写一个字节，writeIndex自动增加1，一旦增加到writeIndex与capacity()容量相等，  则表示ByteBuf不可写了，
+ * capacity()是一个成员方法，不是一个成员属性， 它表示ByteBuf 中可以写入的容量，注意，它不是最大容量maxCapacity.
+ * maxCapacity(最大容量)： 表示ByteBuf 可扩容的最大容量，当向ByteBuf写数据时，如果容量不足，可以进行扩容。扩容的最大限度由maxCapacity的值
+ * 来设定，超过maxCapacity就会报错。
+ *
+ *
+ *
+ *
+ * ByteBuf 缓冲区的类型
+ * 介绍完分配器类型，再来说一下缓冲区的类型，如表6-2所示 ，根据内存管理方的不同，分为堆缓冲区和直接缓存区，也就是Heap ByteBuf 和Direct ByteBuf
+ * ，另外为了方便缓冲区进行组合，提供了一种组合缓存区
+ *
+ *  类型          |         说明                                                     |          优点                   |     不足
+ *  Heap ByteBuf    内部数据为一个Java数组，存储在JVM的堆空间中，通过hasArray              未使用池化的情况下，能提供快速的       写入底层传输通道之前，都会复制到直接缓冲区
+ *                  来判断是不是堆缓冲区                                                分配和释放
+ *
+ *  Direct ByteBuf  内部数据存储在操作系统物理内存中
+ *
+ *
  */
 public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
 
     /**
      * Returns the number of bytes (octets) this buffer can contain.
+     * 表示ByteBuf的容量，它的值是以下三部分之后，废弃的字节数， 可读的字节数，和可写的字节数
      */
     public abstract int capacity();
 
@@ -291,6 +342,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
     /**
      * Returns the maximum allowed capacity of this buffer. This value provides an upper
      * bound on {@link #capacity()}.
+     * 表示ByteBuf 的最大能够容纳的最大字节数， 当向ByteBuf 中写数据的时候，如果发现容量不足，则进行扩容 ， 直到扩容到maxCapacity设定的上限
      */
     public abstract int maxCapacity();
 
@@ -432,18 +484,22 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
     /**
      * Returns the number of readable bytes which is equal to
      * {@code (this.writerIndex - this.readerIndex)}.
+     * 返回表示ByteBuf当前可写取的字节数，它的值等于writerIndex减去readerIndex
+     *
      */
     public abstract int readableBytes();
 
     /**
      * Returns the number of writable bytes which is equal to
      * {@code (this.capacity - this.writerIndex)}.
+     * 取得可写入的字节数， 它的值等于容量capacity()-writerIndex
      */
     public abstract int writableBytes();
 
     /**
      * Returns the maximum possible number of writable bytes, which is equal to
      * {@code (this.maxCapacity - this.writerIndex)}.
+     * 取得最大的可写字节数， 它的值等于最大容量maxCapacity减去writerIndex
      */
     public abstract int maxWritableBytes();
 
@@ -460,6 +516,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * Returns {@code true}
      * if and only if {@code (this.writerIndex - this.readerIndex)} is greater
      * than {@code 0}.
+     * 返回ByteBuf是否可读，如果writerIndex指针的值大于 readerIndex指针的值，则表示可读，否则为不可读
      */
     public abstract boolean isReadable();
 
@@ -472,6 +529,8 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * Returns {@code true}
      * if and only if {@code (this.capacity - this.writerIndex)} is greater
      * than {@code 0}.
+     * 表示ByteBuf是否可写， 如果capacity()容量大于writerIndex指针的位置，则表示可写，否则为不可写，注意，如果isWritable()返回false
+     * 并不代表不能再往ByteBuf 中写数据了，如果Netty发现往ByteBuf中写数据写不进去的话，会自动扩容ByteBuf
      */
     public abstract boolean isWritable();
 
@@ -497,6 +556,8 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * reposition the current {@code readerIndex} to the marked
      * {@code readerIndex} by calling {@link #resetReaderIndex()}.
      * The initial value of the marked {@code readerIndex} is {@code 0}.
+     * markReaderIndex() , resetReaderIndex() 这两个方法一起介绍，前一个方法表示当前的读指针ReaderIndex保存在markedReaderIndex
+     * 属性中， 后一个方法表示把保存在markedReaderIndex的属性值恢复到读指针ReaderIndex中，markedReaderIndex属性定义在AbstractByteBuf抽象类中
      */
     public abstract ByteBuf markReaderIndex();
 
@@ -515,6 +576,10 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * reposition the current {@code writerIndex} to the marked
      * {@code writerIndex} by calling {@link #resetWriterIndex()}.
      * The initial value of the marked {@code writerIndex} is {@code 0}.
+     *  markWriterIndex 与 resetWriterIndex() 这两个方法一起介绍，前一个方法表示当前的写指针，writerIndex属性的值保存在maxedWriteIndex的属性
+     *  中，后一个方法表示把当前保存的maxedWriterIndex的值恢复到写指针writerIndex属性中，后一个方法表示把之前保存的markedWriterIndex
+     *  的值恢复到写指针writerIndex属性中，markedWriterIndex属性相当于暂存一个属性，也定义了AbstractByteBuf抽象的基类中
+     *
      */
     public abstract ByteBuf markWriterIndex();
 
@@ -712,6 +777,10 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * @throws IndexOutOfBoundsException
      *         if the specified {@code index} is less than {@code 0} or
      *         {@code index + 4} is greater than {@code this.capacity}
+     *  getTYPE(TYPE value) : 读取基础数据类型，并且不改变指针的值，具体如下，getByte() , getBoolean() , getChar() , getShort()
+     *  getInt() , getLong() , getFloat() , getDouble ,getType系列与readTYPE系列不同，getType()系列不会改变读指针 readerIndex的值
+     *  readTYPE系列会改变读指针readerIndex的值
+     *
      */
     public abstract int   getInt(int index);
 
@@ -1087,6 +1156,11 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * @throws IndexOutOfBoundsException
      *         if the specified {@code index} is less than {@code 0} or
      *         {@code index + 4} is greater than {@code this.capacity}
+     *
+     * 基础数据类型的设置，不改变writerIndex指针值，包含了8大基础数据类型的设置，具体如下：setByte() , setBoolean() , setChar()
+     * setShort() , setInt() ,setLong(),setFloat(), setDouble() setType系列与writeTYPE系列的不同，setType系列不改变写指针
+     * writerIndex的值，writeTYPE系列与writeTYPE系列会改变写指针writerIndex的值
+     *
      */
     public abstract ByteBuf setInt(int index, int value);
 
@@ -1485,6 +1559,8 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      *
      * @throws IndexOutOfBoundsException
      *         if {@code this.readableBytes} is less than {@code 4}
+     * readType() :读取基础数据类型，可以读取8大基础数据类型，具体如下readByte(),readBoolean() , readChar() , readShort() , readInt()
+     * readLong,readFloat() , readDouble() ,
      */
     public abstract int   readInt();
 
@@ -1692,6 +1768,8 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      *
      * @throws IndexOutOfBoundsException
      *         if {@code dst.length} is greater than {@code this.readableBytes}
+     * readBytes(byte[] dst) 读取ByteBuf中的数据，将数据从ByteBuf读取到dst字节数组中，这里dst字节数组的大小，通常等待援藏ableBytes()
+     * 这个方法也是最为常用的方法之一
      */
     public abstract ByteBuf readBytes(byte[] dst);
 
@@ -1848,6 +1926,8 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * and increases the {@code writerIndex} by {@code 4} in this buffer.
      * If {@code this.writableBytes} is less than {@code 4}, {@link #ensureWritable(int)}
      * will be called in an attempt to expand capacity to accommodate.
+     * writeTYPE(TYPE value) : 写入到基础数据类型中的数据，TYPE表示基础数据类型，包含了8个最大基础数据类型，具体如下，writeByte(),writeBoolean()
+     * writeChar(),writeShort,writeInt() ,writeLong() , writeFloat(),writeDouble();
      */
     public abstract ByteBuf writeInt(int value);
 
@@ -1866,6 +1946,8 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * in this buffer.
      * If {@code this.writableBytes} is less than {@code 8}, {@link #ensureWritable(int)}
      * will be called in an attempt to expand capacity to accommodate.
+     *
+     *
      */
     public abstract ByteBuf writeLong(long value);
 
@@ -1981,6 +2063,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * by the number of the transferred bytes (= {@code src.length}).
      * If {@code this.writableBytes} is less than {@code src.length}, {@link #ensureWritable(int)}
      * will be called in an attempt to expand capacity to accommodate.
+     * 把src字节数组中的数据全部写到ByteBuf中去，这是最为常用的一个方兴未艾
      */
     public abstract ByteBuf writeBytes(byte[] src);
 

@@ -286,6 +286,7 @@ public interface ChannelPipeline
      *         if there's an entry with the same name already in the pipeline
      * @throws NullPointerException
      *         if the specified baseName or handler is {@code null}
+     * 在baseName处理器前增加一个业务处理器，名字由name指定
      */
     ChannelPipeline addBefore(String baseName, String name, ChannelHandler handler);
 
@@ -322,6 +323,7 @@ public interface ChannelPipeline
      *         if there's an entry with the same name already in the pipeline
      * @throws NullPointerException
      *         if the specified baseName or handler is {@code null}
+     * 在baseName处理器的后面增加一个业务处理器， 名字由name指定
      */
     ChannelPipeline addAfter(String baseName, String name, ChannelHandler handler);
 
@@ -348,7 +350,7 @@ public interface ChannelPipeline
      * Inserts {@link ChannelHandler}s at the first position of this pipeline.
      *
      * @param handlers  the handlers to insert first
-     *
+     * 在头部增加一个业务处理器， 名字由name指定
      */
     ChannelPipeline addFirst(ChannelHandler... handlers);
 
@@ -366,7 +368,7 @@ public interface ChannelPipeline
      * Inserts {@link ChannelHandler}s at the last position of this pipeline.
      *
      * @param handlers  the handlers to insert last
-     *
+     * 在尾部增加一个业务处理器， 名字由name指定
      */
     ChannelPipeline addLast(ChannelHandler... handlers);
 
@@ -389,6 +391,7 @@ public interface ChannelPipeline
      *         if there's no such handler in this pipeline
      * @throws NullPointerException
      *         if the specified handler is {@code null}
+     * 删除一个业务处理器实例
      */
     ChannelPipeline remove(ChannelHandler handler);
 
@@ -428,6 +431,7 @@ public interface ChannelPipeline
      *
      * @throws NoSuchElementException
      *         if this pipeline is empty
+     * 删除第一个业务处理器实例
      */
     ChannelHandler removeFirst();
 
@@ -438,6 +442,7 @@ public interface ChannelPipeline
      *
      * @throws NoSuchElementException
      *         if this pipeline is empty
+     * 删除最后一个业务处理器实例
      */
     ChannelHandler removeLast();
 

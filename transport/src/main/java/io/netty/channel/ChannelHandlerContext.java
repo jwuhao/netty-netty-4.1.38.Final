@@ -121,6 +121,23 @@ import java.nio.channels.Channels;
  * {@link ChannelPipeline} to find out more about inbound and outbound operations,
  * what fundamental differences they have, how they flow in a  pipeline,  and how to handle
  * the operation in your application.
+ * 不管我们是定义的哪种类型的Handler业务处理器，最终它们都是以双向链表的方式保存在流水线中，这里流水线的节点类型，并不是前面的Handler业务处理器基类
+ * 而是一个新的Netty类型，ChannelHandlerContext通道处理器上下文类， ChannelHandlerContext是何方神圣呢？
+ * 在Handler业务处理器被添加到流水线中时，会创建一个通道处理器上下文ChannelHandlerContext ，它代表了ChannelHandler通道处理器和
+ * ChannelPipeline通道流水线之间的关联
+ * ChannelHandlerContext 中包含了许多的方法，主要可以分为两类， 第一类是获取上下文所关联的Netty 组件实例，如关联的通道，所关联的流水线
+ * 上下文内部Handler业务处理器实例等，第二类是入站和出站处理方法 。
+ * 在Channel,ChannelPipeline, ChannelHandlerContext三个类中，会有同样的出站处理方法，同一个操作出现在不同的类中，功能有何不同呢？如果通过
+ * Channel 或 ChannelPipeline的实例来调用这些方法，它们就会在整条流水线中传播，然而，如果是通过ChannelHandlerContext 通道处理器上下文进行
+ * 调用，就只会从当前的节点开始执行Handler业务处理器， 并传播到同类形势处理器的下一站节点 。
+ * Channel,Handler, ChannelHandlerContext三者之间的关系为： Channel 通道拥有一条ChannelPipeline通道流水线，每一条流水线节点为一个
+ * ChannelHandlerContext 通道处理器上下文对象，每一个上下文中包裹了一个ChannelHandler通道处理器， 在ChannelHandler 通道处理器的入站/
+ * 出站处理方法中， Netty 会传递一个Context 上下文实例作为实际参数，通过Context 实例的实参，业务处理中，可以获取ChannelPipeline 通道
+ * 流水线的实例或者Channel 通道的实例。
+ *
+ *
+ *
+ *
  */
 public interface ChannelHandlerContext extends AttributeMap, ChannelInboundInvoker, ChannelOutboundInvoker {
 

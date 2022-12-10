@@ -88,21 +88,22 @@ public abstract class ChannelInitializer<C extends Channel> extends ChannelInbou
      * @throws Exception    is thrown if an error occurs. In that case it will be handled by
      *                      {@link #exceptionCaught(ChannelHandlerContext, Throwable)} which will by default close
      *                      the {@link Channel}.
+     * 抽象方法，通道初始化
      */
     protected abstract void initChannel(C ch) throws Exception;
 
     @Override
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked") // ChannelInitializer 在完成通道的初始化之后，为什么要将自己从流水线中删除呢？ 原因很简单，就是一条通道只需要做一次初始化的工作
     public final void channelRegistered(ChannelHandlerContext ctx) throws Exception {
         // Normally this method will never be called as handlerAdded(...) should call initChannel(...) and remove
         // the handler.
-        if (initChannel(ctx)) {
+        if (initChannel(ctx)) {                     // 调用通道初始化实现
             // we called initChannel(...) so we need to call now pipeline.fireChannelRegistered() to ensure we not
             // miss an event.
-            ctx.pipeline().fireChannelRegistered();
+            ctx.pipeline().fireChannelRegistered();         // 删除通道初始化处理器
 
             // We are done with init the Channel, removing all the state for the Channel now.
-            removeState(ctx);
+            removeState(ctx);                       // 发送注册消息到下一站
         } else {
             // Called initChannel(...) before which is the expected behavior, so just forward the event.
             ctx.fireChannelRegistered();

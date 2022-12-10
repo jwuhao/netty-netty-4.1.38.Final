@@ -69,6 +69,40 @@ import java.nio.channels.ScatteringByteChannel;
  *                                                                                 |---------> recycle
  *
  *
+ *
+ * ByteBuf和Allocator 分配器
+ * Netty通过ByteBufferAllocator来分配器来创建缓冲区和分配内存空间，Netty提供了ByteBufAllocator的两种实现， PoolByteBufAllocator和
+ * UnpooledByteBufAllocator .
+ * PoolByteBufAllocator （池化ByteBuf分配器），将ByteBuf实例放入池中， 提高了性能，将内存碎片减少到最小， 这个池化分配器采用了jemalloc高效
+ * 内存分配 的策略， 该策略被好几种现在操作系统所采用
+ * UnpooledByteBufAllocator是普通的未池化的ByteBuf 分配器，它没有把ByteBuf 放入到池中，每次被调用时，返回一个新的ByteBuf 实例，通过Java 的
+ * 垃圾回收机制回收。
+ * 为了验证两者的性能，大家可以做一下对比试验 ：
+ * 1. 使用UnpooledByteBufAllocator的方式分配ByteBuf 缓冲区， 开启10000个长连接，每秒所有的连接发送一条消息，再看看服务器的内存使用量的情况
+ * 实例参考结果： 在短时间之内，可以看到占用10 G 的内存空间， 但随着系统的运行，内存空间不断的增长，直到整个系统内存被占满导致内存溢出 。最终系统
+ * 宕机 。
+ * 2. 把UnpooledByteBufAllocator 换成PooledByteBufAllocator，再进行试验，看服务器内存的使用量的情况
+ * 实验的参考结果，内存的使用量基本维持在一个连接占用1MB左右的内存空间，内存的使用量保存在10GB左右， 经过长时间的运行测试 ， 我们会发现内存的使用量
+ * 都能维护在这个数量附近，系统不会因为内存被耗尽而崩溃。
+ * 在Netty中，默认的分配器为 BytebufAllocator.DEFAUlT，可以通过Java系统参数System Property的选项io.netty.allocator.type进行配置，
+ * 配置时使用字符串值，"unpooled","pooled" ，
+ * 不同的Netty 版本，对于分配器的的默认使用策略不一样， 在Netty4.0版本中， 默认的配置为UnpooledByteBufAllocator ， 而在4.1 版本中，默认的分配 器
+ * PooledByteBufAllocator 现在PooledByteBufAllocator已经广泛使用了一段时间，并且有了增强的缓冲区泄漏追踪机制，因此，可以在Netty程序中设置启动器
+ * Bootstrap的时候，将PooledByteBufAllocator设置为默认的分配器。
+ *
+ * ServerBootstrap b = new ServerBootstrap () ;
+ * 设置通道的参数
+ * b.option(ChannelOption.SO_KEEPALIVE,true);
+ * b.option(ChannelOption.ALLOCATOR,PooledByteBufAllocator.DEFAULT);
+ * b.childOption(ChannelOption.ALLOCATOR.PooledByteBufAllocator.DEFAULT);
+ *
+ * 内存管理的策略可以灵活的调整，这是使用Netty所带来的又一个好处 ， 只需要简单的配置，就能获得到池化缓冲区所带来的好处，在底层 ， Netty
+ * 为我们做了所有的 "脏活，累活" 这主要是因为Netty 用到了Java 的Jemalloc内存管理库。
+ * 使用分配器ByteBuf 的方法有多种，下面列出主要的几种
+ *
+ *
+ *
+ *
  */
 abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
 
