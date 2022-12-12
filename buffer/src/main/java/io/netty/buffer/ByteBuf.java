@@ -317,7 +317,30 @@ import java.nio.charset.UnsupportedCharsetException;
  *  Heap ByteBuf    内部数据为一个Java数组，存储在JVM的堆空间中，通过hasArray              未使用池化的情况下，能提供快速的       写入底层传输通道之前，都会复制到直接缓冲区
  *                  来判断是不是堆缓冲区                                                分配和释放
  *
- *  Direct ByteBuf  内部数据存储在操作系统物理内存中
+ *  Direct ByteBuf  内部数据存储在操作系统物理内存中                                      能获取超出JVM堆限制大小的内存空间，写入传  释放和分配空间昂贵（使用系统的方法）在Java 中操作时需要复制一次到堆上
+ *                                                                                    输通道比堆缓冲区更快
+ *
+ * CompositeBuffer  多个缓冲区的组合表示                                                方便一次操作多个缓冲区实现
+ *
+ *
+ * 上面三种缓冲区的类型，无论是哪一种，都可能通过池化（Pooled） ，非池化（Unpooled）两种分配器来创建和分配内存空间
+ * 1.Direct Memory 不属于Java 堆内存，所分配的内存其实是调用操作系统malloc()函数来获得的， 由Netty的本地内存Native堆进行管理堆进行管理
+ * 2.Direct Memory 容量可通过-XX:MaxDirectMemorySize来指定，如果不指定则默认与Java堆的最大值（-Xmx指定）一样，注意，并不是强制要求 ，有的
+ * JVM默认Direct Memory 与-Xmx无直接关系
+ * 3.Direct Memory 的使用避免也Java堆和Native堆之间的来回复制数据，在某些应用场景中提高了性能 。
+ * 在需要频繁的创建缓冲区的场合，由于 创建和销毁Direct Buffer (直接缓冲区)的代价是比较高昂的， 因此不宜使用Direct Buffer ， 也就是说
+ * ,Direct Buffer直接缓冲区的代价是比较高昂的， 因此不宜使用Direct Buffer，Direct Buffer尽量在池化分配器中分配和回收，如果能将Direct Buffer
+ * 进行复用，在读写频繁的情况下，就可以大幅度的改善性能了。
+ * 在Java的垃圾回收为堆外内存，所以清理的工作不会为Java 虚拟机（JVM ）带来压力，注意一下垃圾回收的应用场景，垃圾回收仅在Java 堆被填满
+ * 以至于无法为新的堆分配请求提供服务时发生，在Java 应用程序中调用System.gc()函数来释放内存。
+ *
+ * 首先对比介绍一下，Heap ByteBuf 和Direct ByteBuf 两类缓冲区的使用，它们有以下几点不同 。
+ * 创建的方法不同，Heap ByteBuf 通过调用分配器的buffer()方法来创建，而Direct ByteBuf 的创建，则通过调用分配器directBuffer()方法
+ * Heap ByteBuf 缓冲区可以直接通过array()方法读取内部数组，而Direct ByteBuf 缓冲区不能读取内部数组
+ * 可调用hasArray()方法来判断是否为Heap  ByteBuf 类型的缓冲区，如果hasArray()返回的值为true，则表示Heap堆缓冲，否则就不是
+ * Direct ByteBuf 要读取缓冲数据进行业务处理，相比较麻烦 ，需要通过getBytes/readBytes等方法将数据复制到Java的堆内存，然后进行其他的计算
+ *
+ *
  *
  *
  */
@@ -2290,6 +2313,22 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * <p>
      * Also be aware that this method will NOT call {@link #retain()} and so the
      * reference count will NOT be increased.
+     * 首先说明一下，浅层复制是一种非常重要的操作，可以很大的程度上避免内存复制，这一点对于大规模的通信来说是非常重要的。
+     * ByteBuf的浅层复制分为两种，有切片（slice）浅层复制和整体（duplicate）浅层复制 。
+     * ByteBuf 的slice方法可以获取一个ByteBuf的切片，一个ByteBuf 可以进行金疮切片浅层复制，多次切片后的ByteBuf 对象可以共享一个存储区域
+     * slice方法有两个重载的版本：
+     * 1.public ByteBuf slice();
+     * 2.public ByteBuf slice(int index,int length);
+     * 第一个是不带参数的slice方法，在内部都是调用了第二个带参数的slice方法，调用大致方式为buf.slice(buf.readerIndex(),buf.readableBytes());
+     * 也就是说，第一个无参数的slice()方法返回值是ByteBuf 实例中的可读取部分。
+     * 第二个带参数的slice(int index, int length)方法，可以通过灵活的设置不同的起始位置和长度 。 来获取一个ByteBuf的不同的区域切片
+     *
+     * 切片后新的ByteBuf和源ByteBuf的关联性
+     * 切片不会复制源ByteBuf 的底层数据，底层数组和源ByteBuf的底层数组是同一个
+     * 切片不会改变源ByteBuf 的引用计数器
+     * 从根本上来说，slice()无参数的方法所生成的切片就是源ByteBuf 可读部分的浅层复制 。
+     *
+     *
      */
     public abstract ByteBuf slice();
 
@@ -2344,6 +2383,23 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * @return A buffer whose readable content is equivalent to the buffer returned by {@link #slice()}.
      * However this buffer will share the capacity of the underlying buffer, and therefore allows access to all of the
      * underlying content if necessary.
+     *
+     *
+     * 整体的浅层复制
+     *
+     * 和slice切片不同，duplicate()返回的是源ByteBuf的整体对象的一个浅层复制，包括如下的内容 。
+     * duplicate的读写指针，最大容量值，与源ByteBuf 的读写指针相同
+     * duplicate()不会改变源ByteBuf的引用计数器
+     * duplicate() 不会复制源ByteBuf 的底层数据
+     * duplicate()和slice()方法都是浅层复制，不同的是， slice()方法是切取一段的浅层复制，而duplicate()是整体的浅层复制 。
+     *
+     * 浅层复制的问题
+     * 浅层复制方法不会实际的去复制数据，也不会改变ByteBuf 的引用计数，这就会导致一个问题，在源ByteBuf调用release()之后，一旦引用
+     * 计数为零，就变得不能访问了， 在这种场景下，源ByteBuf的所有浅层复制实例也不能进行读写了， 如果强行对浅层复制的实例进行读写 ，则会报错
+     *
+     * 因此，在调用浅层复制实例时 可以通过调用一次retain()方法来增加引用，表示它们的对应底层内存多了一次引用，引用的计数为2，在浅层复制
+     * 实例用完后，需要调用两次release()方法，将引用计数减一，这样就不影响源ByteBuf的内存释放了。
+     *
      */
     public abstract ByteBuf duplicate();
 

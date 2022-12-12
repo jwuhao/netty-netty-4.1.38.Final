@@ -143,6 +143,12 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
         // 在DefaultChannelConfig初始化时设置。 PooledByteBufAllocator主要用来处理内存的分配，并最终委托 PoolArena去完成。
         // AdaptiveRecvByteBufAllocator主要用来计算每次 读循环时应该分配多少内存。NioByteUnsafe之所以需要循环读取，主 要是因为分配
         // 的初始ByteBuf不一定能够容纳读取到的所有数据。 NioByteUnsafe循环读取的核心代码解读如下:
+
+        // 入站处理时， Netty 是如何自动创建入站的ByteBuf 的呢 ？
+        // 查看Netty源代码，我们可以看到，Netty 的Reactor反应器线程会在底层的Java NIO 通道读取数据时，也就是AbstractNioByteChannel.NioByteUnsafe
+        // .read()处，调用ByteBufAllocator方法，创建ByteBuf实例，从操作系统缓冲区把数据读取到ByteBuf 实例中， 然后调用pipeline.fireChannelRead(byteBuf)
+        // 方法将读取到的数据包送入到入站处理流水线中。
+        
         public final void read() {
             // 获取pipeline通道配置，Channel管道
             final ChannelConfig config = config();

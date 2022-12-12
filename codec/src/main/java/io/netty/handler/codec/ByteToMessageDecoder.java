@@ -69,6 +69,44 @@ import java.util.List;
  * Some methods such as {@link ByteBuf#readBytes(int)} will cause a memory leak if the returned buffer
  * is not released or added to the <tt>out</tt> {@link List}. Use derived buffers like {@link ByteBuf#readSlice(int)}
  * to avoid leaking memory.
+ *
+ *
+ * 什么叫Netty解码器呢？
+ * 首先，它是一个InBound入站处理器，解码器负责处理 入站数据
+ * 其次，它能将上一站InBound 入站处理器传过来输入（Input）数据，进行数据的解码或者格式转换，然后输出（Output ）到一下站Inbound入站处理器。
+ * 一个标准的解码器将输入类型为ByteBuf 缓冲区的数据进行解码，输出一个一个的Java POJO对象，Netty内置了这个解码器， 叫作ByteToMessageDecoder
+ * ，位在Netty 的io.netty.handler.codec包中。
+ *
+ * 强调一下， 所有的Netty 中的解码器， 都是Inbound入站处理器类型，都直接或者间接的实现了ChannelInBoundHandler接口。
+ *
+ * ByteToMessageDecoder是一个非常重要的解码器基类， 它是一个抽象类， 实现了解码的基础逻辑和流程，ByteToMessageDecoder继承自ChannelInBoundHandlerAdapter
+ * 适配器， 是一个入站处理器，实现了从ByteBuf 到Java POJO对象的解码功能 。
+ *
+ * ByteToMessageDecoder 解码的流程，大致如图7-1所示 ， 具体可以描述为，首先，它将上一站传过来的输入到ByteBuf 的数据进行解码，
+ * 解码出一个List<Object> 对象列表，然后，迭代List<Object>列表 ， 逐个将Java POJO 对象传入到下一站Inbound入站处理器。
+ *
+ *  查看到了Nerry源码，我们会以其的发现，ByteToMessageDecoder 是一个抽象类， 不能以实例化的方式创建对象，也就是说，直接通过ByteToMessageDecoder
+ *  类，并不能完成ByteBuf 字节码到具体的Java类型的解码，还得依赖于它的具体实现。
+ *
+ *  ByteToMessageDecoder 的解码方法名为decode，通过源代码我们可以发现，decode方法只是提供了一个抽象的方法，也就是说，decode方法中的具体解码过程
+ *  ByteToMessageDecoder 没有具体的实现， 换句话说，如何将Bytebuf数据变成Object 对象，需要子类去完成 ，父类先不管 。
+ *  总之，作为解码器的父类，ByteToMessageDecoder 仅仅提供了一个流程性的框架，它仅仅将子类的decode方法解码后的Object结果，放入到自己的内部结构列表
+ *  List<Object>中，最终父类会负责将<Object> 中的元素，一个一个的传递给一一步，哦，不对，父类还没有那么 努力 ， 而是将子类的Oject结果放入到
+ *  父类的List<Object> 列表中，也交由子类的decode 方法完成的。
+ *
+ *  如果要实现和个自己的解码器 首先继承ByteToMessageDecoder抽象类，然后，实现其蕨类的decode的抽象方法，将解码的逻辑，写入到此方法
+ *  总体来说，如果要实现一个自己的ByteBuf 解码器，流程大致如下
+ *
+ *  1. 首先继承了ByteToMessageDecoder抽象类
+ *  2. 然后实现其基类的decode抽象方法 ， 将ByteBuf到POJO的解码的逻辑写入到此方法中，将ByteBuf 二进制数据，解码成一个一个的POJO对象
+ *  3. 在子类的decode方法中，需要将解码后的Java POJO 对象，放入到decode的List<Object> 实参中，这个参数是ByteToMessageDecoder父类
+ *  传入的，也就是父类的结果收集列表
+ *
+ *  在流水线的过程中，ByteToMessageDecoder 调用子类的decode方法解码完成后，会将List<Object>中的结果，一个一个的地分开传递到一下站
+ *  Inbound入站，处理器。
+ *
+ *
+ *
  */
 public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter {
 

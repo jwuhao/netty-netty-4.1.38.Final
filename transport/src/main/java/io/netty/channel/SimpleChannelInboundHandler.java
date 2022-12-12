@@ -43,7 +43,14 @@ import io.netty.util.internal.TypeParameterMatcher;
  * <p>
  * Please keep in mind that {@link #channelRead0(ChannelHandlerContext, I)} will be renamed to
  * {@code messageReceived(ChannelHandlerContext, I)} in 5.0.
+ *
  * </p>
+ * SimpleChannelInboundHandler 自动释放
+ * 如果Handler 业务处理器需要截断流水线处理流程， 不将ByteBuf 数据包送入后面的InboundHandler入站处理器，这时，流水线末端的TailHandler
+ * 末尾处理器自动释放缓冲区的工作就失效了。
+ * 在这种场景下，Handler业务处理器有两中选择。
+ * 1. 手动释放 ByteBuf
+ * 2. 继承 SimpleChannelInboundHandler ，利用它来完成自动释放
  */
 public abstract class SimpleChannelInboundHandler<I> extends ChannelInboundHandlerAdapter {
 
@@ -96,12 +103,16 @@ public abstract class SimpleChannelInboundHandler<I> extends ChannelInboundHandl
     }
 
     @Override
+    // 以入站读数据为例，Handler业务处理器必须继承自SimpleChannelInboundHandler基类， 并且，业务处理器的代码必须移到到重写的channelRead0(ctx, msg)
+    // 方法中， SimpleChannelInboundHandler类的channelRead()等入站处理方法，会在调用完实际的channelRead0()方法后，帮忙释放ByteBuf实例
+    // 如果大家好奇，想看看SimpleChannelInBoundHandler是如何释放ByteBuf 的，那么就一起来看看Netty源代码 。
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         boolean release = true;
         try {
             if (acceptInboundMessage(msg)) {
                 @SuppressWarnings("unchecked")
                 I imsg = (I) msg;
+                // 调用实际的业务代码，必须由子类继承，并且提供了实现。
                 channelRead0(ctx, imsg);
             } else {
                 release = false;
@@ -109,6 +120,9 @@ public abstract class SimpleChannelInboundHandler<I> extends ChannelInboundHandl
             }
         } finally {
             if (autoRelease && release) {
+                // 释放ByteBuf
+                // 在Netty的SimpleChannelInboundHandler类的源代码中， 执行完由子类继承的channelRead0()业务处理后，在final语句代码段中
+                // ByteBuf 被释放了一次，如果ByteBuf 计数器为零，将被彻底释放掉。
                 ReferenceCountUtil.release(msg);
             }
         }

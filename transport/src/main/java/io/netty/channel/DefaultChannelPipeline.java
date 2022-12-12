@@ -1232,6 +1232,13 @@ public class DefaultChannelPipeline implements ChannelPipeline {
      * Called once an user event hit the end of the {@link ChannelPipeline} without been handled by the user
      * in {@link ChannelInboundHandler#userEventTriggered(ChannelHandlerContext, Object)}. This method is responsible
      * to call {@link ReferenceCountUtil#release(Object)} on the given event at some point.
+     * 再来看看出站处理器处理时，Netty是何时释放出站的ByteBuf的呢？
+     * 出站缓冲区的自动释放方式，HeadHandler自动释放，在出站处理流程中， 申请分配到的ByteBuf 主要是通过HeadHandler完成自动释放的。
+     * 出站处理用到的ByteBuf 缓冲区，一般是要发送消息，通常由Handler 业务处理器所申请而分配的，例如 ，在write出站写入通道时， 通过调用
+     * ctx.writeAndFlush(Bytebuf msg), ByteBuf 缓冲区进入出站处理器的流水线，在每一个出站的Handler业务处理器中处理完后，最后数据包
+     * (或消息)会来到出站的最后一棒， ByteBuf会被释放一次，如果计数器为零，将被彻底的释放掉。
+     * Netty开发中，必须密切的关注，ByteBuf 缓冲区的翻译，如果释放不及时，会造成Netty的内存泄露，最终导致内存耗尽 。
+     *
      */
     protected void onUnhandledInboundUserEventTriggered(Object evt) {
         // This may not be a configuration error and so don't log anything.
