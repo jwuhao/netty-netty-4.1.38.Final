@@ -184,6 +184,17 @@ import io.netty.handler.codec.serialization.ObjectDecoder;
  * </pre>
  * @see LengthFieldPrepender
  * 另一种是根据写入消息体长度值解码(如LengthFieldBasedFrameDecoder)，这种解码器的一般用法 是先读取前面4个字节的int值，再根据这个值去读取可用的数据包。
+ *
+ *
+ *
+ *
+ *
+ * 自定义长度数据包解码器
+ * 这是一种基于灵活长度的解码器，在ByteBuf数据包中， 加一个长度的字段，保存了原始数据包的长度，解码的时候，会按照这个长度进行原始数据包的
+ * 提取。
+ * 这种解码器在所有的开箱即用的解码器中最为复杂的一种， 后面会重点介绍 。
+ *
+ *
  */
 public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
 

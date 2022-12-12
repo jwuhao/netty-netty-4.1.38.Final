@@ -262,20 +262,55 @@ import java.util.List;
  *     }
  * </pre>
  * @param <S>
+ *
  *        the state type which is usually an {@link Enum}; use {@link Void} if state management is
  *        unused
+ *  使用上面的Byte2IntegerDecoder会面临一个问题，需要对ByteBuf 的长度进行验查， 如果有足够的字节，才进行整数的读取，这种长度的判断，
+ * 是否可以由Netty 帮忙来完成呢？ 安全是，使用Netty的ReplayingDecoder可以省去长度的判断
+ *  ReplayingDecoder类是ByteToMessageDocoder的子类，其作用是 。
+ *  1. 在读取ByteBuf缓冲区的数据之前，需要检查缓冲区是否有足够的字节
+ *  2. 若ByteBuf 中有足够的字节，则会正常的读取，反之，如果没有足够的字节，则会停止解码 。
+ *
+ *
+ * 继承ReplayingDecoder 类实现一个解码器，就不编写长度判断的代码了，ReplayingDecoder 进行长度的判断原理，其实很简单，它的内部定义了一个新的
+ * 二进制缓冲区，对ByteBuf缓冲区进行了装饰， 这个类名为ReplayingDecoderBuffer ，该头饰器的特点是， 在缓冲区真正读取数据之前，首先进行长度
+ * 的判断，如果长度合格，则读取数据，否则，抛出RepayError ，ReplayingDecoder捕获到ReplayError后，会留着数据，等待下一次的IO事件到来时再
+ * 读取。 简单来讲，RepaylingDecoder基类的关键技术就是偷梁换柱，将外部传入的ByteBuf缓冲区传给子类之前，换成也自己的装饰过的RepayingDecoder
+ * 的缓冲区， 也就是说，在示例程序中，Byte2IntegerReplayDecoder中的Decoder方法所得到的实参in的值，它的直接类型并不是原始的ByteBuf 类型，而是
+ * RepalayingDecoderBuffer类型。
+ *
+ * RepaylingDecoderBuffer 的类型，首先是一个内部类， 其次它继承了ByteBuf类型，包装了ByteBuf类型的大部分读取方法 ， ReplayingDecoderBuffer
+ * 类型的读取方法与ByteBuf类型的读取方法相比，做了什么样的功能增强呢？ 主要是二进制数据长度的判断，如果长度不足，则抛出异常，这个异常
+ * 反应过来被ReplayingDeder基类所捕获，将解码工作停掉。
+ *
+ * ReplayingDecoder的作用，远远不止于进行长度的判断，它更重要的作用是用于分包传输的应用场景 。
+ *
+ *
+ *
+ *
+ * 小结：通过ReplayingDecoder解码器， 可以正确的解码分包后的ByteBuf 数据包， 但是，在实际开发中， 不太建议继承这个类， 原因是
+ * 1. 不是所有的ByteBuf 操作都会被ReplayingDecoderBuffer装饰类所支持，可能有些ByteBuf操作在ReplayingDecoder子类的decoder实现方法中被使用时就会抛出ReplayError异常。
+ * 2. 在数据解析逻辑复杂的应用场景中， ReplayingDecoder在解析速度上相对较差
+ *  原因是什么呢？ 在ByteBuf中长度不够时， ReplayingDecoder会捕获一个ReplayError异常， 这里会把ByteBuf 的读指针还原为之前的读指针（checkpoint）
+ *  然后结束这次解析操作，等待下一次IO读事件，在网络条件比较糟糕的情况下， 一个数据包的解析逻辑会被反复执行多次，如果解析过程是一个消耗CPU
+ *  的操作，那么这时CPU是个大负担
+ *
+ *  所以ReplayingDecoder 更多应用是应用于数据解析逻辑简单的场景，在数据解析复杂的应用场景，建议使用前文介绍的解码器ByteTomMessageDecoder
+ *  或者其子类，它们会更加合适
+ *
  */
 public abstract class ReplayingDecoder<S> extends ByteToMessageDecoder {
 
     static final Signal REPLAY = Signal.valueOf(ReplayingDecoder.class, "REPLAY");
-
+    // 初始化内部的ByteBuf 缓冲装饰器类
     private final ReplayingDecoderByteBuf replayable = new ReplayingDecoderByteBuf();
-    private S state;
+    private S state;                            // 重要的成员属性，表示阶段，类型为泛型，默认为Object
     private int checkpoint = -1;
 
     /**
      * Creates a new instance with no initial state (i.e: {@code null}).
      */
+    // 默认的构造器
     protected ReplayingDecoder() {
         this(null);
     }
@@ -283,7 +318,9 @@ public abstract class ReplayingDecoder<S> extends ByteToMessageDecoder {
     /**
      * Creates a new instance with the specified initial state.
      */
+    // 重载的构造器
     protected ReplayingDecoder(S initialState) {
+        // 状态state 的默认值为null
         state = initialState;
     }
 

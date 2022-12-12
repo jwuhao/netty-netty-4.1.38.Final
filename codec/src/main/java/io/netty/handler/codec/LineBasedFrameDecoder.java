@@ -32,6 +32,10 @@ import java.util.List;
  * byte values for multibyte codepoint representations therefore fully supported by this implementation.
  * <p>
  * For a more general delimiter-based decoder, see {@link DelimiterBasedFrameDecoder}.
+ * 行分割数据包解码器
+ * 每个ByteBuf数据包，使用换行符（或回车换行符）作为数据饭的边界分割符， 如果每个接收到的数据包，都以换行符/回车换行符作为数据分隔 ，
+ * 这种场景下，只需要把这个解码器加到流水线中即可，Netty 会使用换行分隔符，把ByteBuf 数据包分割成一个一个完整的应用 ByteBuf 数据包
+ * 再发送到下一站
  */
 public class LineBasedFrameDecoder extends ByteToMessageDecoder {
 

@@ -48,6 +48,20 @@ import java.util.List;
  * are of type {@link ReferenceCounted}. This is needed as the {@link MessageToMessageDecoder} will call
  * {@link ReferenceCounted#release()} on decoded messages.
  *
+ *
+ * 前面的解码器都是将ByteBuf 缓冲区中的二进制数据解码成Java 的普通POJO对象，有一个问题，是否存在一些解码器， 将一种POJO 对象解码成另外一种
+ * POJO对象呢？答案是：存在的。
+ * 与前面的不同的是，在这种应用场景下Decoder 解码器，需要继承一个新的Netty 解码器基类， MessageToMessageDecoder<I>  ，在继承它的时候
+ * 需要明确的泛型实参<I> ， 这个实参的作用就是指定入站的消息Java POJO类型。
+ * 这里有个问题：为什么 MessageToMessageDecoder<I> 需要指定入站数据类型，而前面使用的 ByteToMessageDecoder解码的ByteBuf 的时候
+ * 不需要指定泛型实参，原因很简单，ByteToMessageDecoder的入站消息类型是十分明确的， 就是二进制缓冲区的ByteBuf 类型，但MessageTomessageDecoder
+ * 的入站消息类型不是很明确，可以在任何的POJO类型，所以需要指定 。
+ *
+ * MessageToMessageDecoder 类也是一个入站的处理器， 也有一个decode抽象方法，decoder具体解码的逻辑需要子类去实现。
+ * 下面通过实现一个整体的Integer到字符串String的解码器，演示了一个 MessageToMessageDecoder的使用，此解码器具体功能
+ * 是将整数转换成字符串中，然后输出到下一站
+ * Integer2StringDecoder
+ *
  */
 public abstract class MessageToMessageDecoder<I> extends ChannelInboundHandlerAdapter {
 

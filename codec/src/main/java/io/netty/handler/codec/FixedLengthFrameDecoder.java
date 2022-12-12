@@ -37,6 +37,11 @@ import java.util.List;
  * | ABC | DEF | GHI |
  * +-----+-----+-----+
  * </pre>
+ * 固定长度的数据包解码器
+ * 适用场景，每个接收到的数据包的长度，都是固定的，例如100个字节
+ * 在这种场景下，只需要把这个解码器加到流水线中去，它会把入站ByteBuf 数据包拆分成一个个长度为100的数据包， 然后发往下一个channelHandler
+ * 入站处理器，补充说明一下，这里所指的数据包，在Netty中就是一个ByteBuf的实例，注，数据帧，（Frame） ,本书也通称为数据包。
+ *
  */
 public class FixedLengthFrameDecoder extends ByteToMessageDecoder {
 

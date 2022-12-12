@@ -107,6 +107,14 @@ import java.util.List;
  *
  *
  *
+ *
+ * 表面上，ByteToMessageDecoder基类是无状态的，它不像ReplayingDecoder，需要使用状态位来保存当前的读取阶段，但是，实际上，ByteToMessageDecoder也是
+ * 有状态的， 为什么呢？
+ *
+ * 在ByteToMessageDecoder的内部，有一个二进制的累积器，cumulation， 它用来保存没有解析完的二进制内容 ， 所以，ByteToMessageDecoder
+ * 及其子类是有状态的业务处理器，也就是说， 它不能共享，每次初始化通道的流水线时， 都要重新创建一个ByteToMessageDecoder或者它的子类的实例 。
+ *
+ *
  */
 public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter {
 

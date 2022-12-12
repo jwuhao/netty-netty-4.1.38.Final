@@ -67,6 +67,8 @@
     </developer>
   </developers>
 
+
+
   <profiles>
     <!-- Detect if we use GraalVM and if so enable the native image testsuite -->
     <profile>
@@ -570,7 +572,6 @@
         <groupId>junit</groupId>
         <artifactId>junit</artifactId>
         <version>4.12</version>
-        <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>${project.groupId}</groupId>

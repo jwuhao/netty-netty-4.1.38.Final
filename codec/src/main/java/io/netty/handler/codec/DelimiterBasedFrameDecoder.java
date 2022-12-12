@@ -57,6 +57,13 @@ import java.util.List;
  * +----------+
  * </pre>
  * 找到ByteBuf中是否有对应的特殊字 符，若有，则截断读取对应的消息;
+ *
+ *
+ * 自定义分隔符数据包解码器
+ * DelimiterBasedFrameDecoder是LineBasedFrameDecoder按照行分割的通用版本，不同之外在于，这个解码器更加的灵活 ， 可以自己定义分隔符
+ * , 而不是局限于换行符， 如果使用这个解码器，那么接收到的数据包，末尾 必须带上对应的分隔符
+ *
+ *
  */
 public class DelimiterBasedFrameDecoder extends ByteToMessageDecoder {
 
