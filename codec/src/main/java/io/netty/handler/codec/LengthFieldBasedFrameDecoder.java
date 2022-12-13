@@ -195,6 +195,9 @@ import io.netty.handler.codec.serialization.ObjectDecoder;
  * 这种解码器在所有的开箱即用的解码器中最为复杂的一种， 后面会重点介绍 。
  *
  *
+ * 长度字段数据包解码器
+ *
+ *
  */
 public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
 
@@ -244,6 +247,21 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
      * @param initialBytesToStrip
      *        the number of first bytes to strip out from the decoded frame
      */
+    // maxFrameLength : 发送的数据包最大长度， 发送数据包的最大长度，例如1024，表示一个数据包最多可发送1024个字节
+    // lengthFieldOffset: 长度字段的偏移量， 指的是长度字段位于数据包内部字节数组中的下标值
+    // lengthFieldLength: 长度字段自己占用的字节数，如果长度字段是一个int整数，则为4，如果长度字段是一个short整数，则为2
+    // lengthAdjustment: 长度字段的偏移量矫正， 这个参数最为难懂，在传输协议比较复杂的情况下，例如包含了长度字段，协议版本号， 魔数等
+    //                  那么解码时，就需要进行长度字段的矫正，长度矫正值的计算公式为：内容字段偏移量 - 长度字段偏移量 - 长度字段的字节数
+    //
+    // initialBytesToStrip: 丢弃的起始字节数 ， 在有效数据字段Context 前面，还有一些其他的字段的字节，作为最终的解析结果，可以丢弃。
+    // 例如，上面的示例程序中， 前面有4个字节的长度字段，起到辅助作用，最终的结果中不需要这个长度，所以丢弃字节数为4 。
+    // LengthFieldBasedFrameDecoder spliter =
+    //                    new LengthFieldBasedFrameDecoder(1024, 0, 4, 0, 4)
+    // 第1个参数maxFrameLength设置为1024，表示数据包的最大长度1024
+    // 第2个参数 lengthFieldOffset 设置为0 ， 表示长度字段的偏移量为0 ， 也就是长度字段放在了最前面， 处理数据包的起始位置 。
+    // 第3个参数 lengthFieldLength 设置为4，表示长度字段的长度为4个字节，即表示内容长度值占用数据包的4个字节 。
+    // 第4个参数 lengthAdjustment 设置为0，长度调整值的计算公式为， 内容字段偏移量-长度字节的偏移量-长度字节的字节数 在上面的示例程序中实际的值为4-0-4 = 0
+    // 第5个参数 initialBytesToStrip 为4， 表示获取最终内容Content的字节数组时， 抛弃最前面的4个字节的数据 。
     public LengthFieldBasedFrameDecoder(
             int maxFrameLength,
             int lengthFieldOffset, int lengthFieldLength,

@@ -3,7 +3,6 @@ package io.netty.actual.combat.e1;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.embedded.EmbeddedChannel;
-import org.junit.Test;
 
 /**
  * create by 尼恩 @ 疯狂创客圈
@@ -12,7 +11,6 @@ public class Integer2ByteEncoderTester {
     /**
      * 测试整数编码器
      */
-    @Test
     public void testIntegerToByteDecoder() {
         ChannelInitializer i = new ChannelInitializer<EmbeddedChannel>() {
             protected void initChannel(EmbeddedChannel ch) {

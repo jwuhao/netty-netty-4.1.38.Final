@@ -27,6 +27,30 @@ import java.net.SocketAddress;
 
 /**
  *  Combines a {@link ChannelInboundHandler} and a {@link ChannelOutboundHandler} into one {@link ChannelHandler}.
+ *
+ *
+ *
+ * 前面的编码器和解码器相结合的是通过继承完成的，继承的方式有其不足，在于， 将编码器和解码器的鉫强制性的放在了同一个类中， 在只需要编码或解码单边
+ * 操作的流水线上，逻辑上不太合适，
+ * 编码器和解码器如果要结合起来，除了继承的方法之外，还可以通过组合的方式实现， 与继承相比，组合会带来更大的灵活性， 编码器和解码器可以捆绑
+ * 使用， 也可以单独使用。
+ *
+ * 如何把单独实现的编码器和解码器组合起来呢？
+ *
+ * Netty 提供了一个新的组合器 CombinedChannelDuplexHandler 基类， 其用法也很简单，下面通过示例程序，来演示如何将前面的 InterFroomByteDecoder
+ * 整数解码器和它对应的InterToByteEncoder 整数编码器组合起来 。
+ * public class IntegerDuplexHandler extends CombinedChannelDuplexHandler<Byte2IntegerDecoder,Integer2ByteEncoder> {
+ *     public IntegerDuplexHandler() {
+ *         super(new Byte2IntegerDecoder(), new Integer2ByteEncoder());
+ *     }
+ * }
+ *
+ *  继承CombinedChannelDuplexHandler 不需要像ByteToMessageCodec那样， 把编码器和解码器逻辑挤在一起， 还是利用原来的编码器和解码器 。
+ *
+ *
+ *
+ *
+ *
  */
 public class CombinedChannelDuplexHandler<I extends ChannelInboundHandler, O extends ChannelOutboundHandler>
         extends ChannelDuplexHandler {

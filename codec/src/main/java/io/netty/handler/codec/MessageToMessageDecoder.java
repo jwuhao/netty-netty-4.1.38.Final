@@ -62,6 +62,40 @@ import java.util.List;
  * 是将整数转换成字符串中，然后输出到下一站
  * Integer2StringDecoder
  *
+ *
+ *
+ * Encoder 原理与实践
+ * 在Netty 的业务处理完后，业务处理的结果往往是某个Java POJO对象，需要编码成最终的ByteBuf二进制类型，通过流水线写入到底层的Java通道 。
+ * 在Netty中，什么叫编码器呢？ 首先编码器是一个Outbound出站处理器，负责处理出站的数据，其次，编码器将上一站Outbound出让处理器传过来的输入
+ * Input数据进行编码或者格式转换，然后传递到下一站ChannelOutBoundHandler出站处理器。
+ * 编码器与解码器相呼应，Netty 中的编码器负责将出站的某种Java POJO对象编码成二提制的ByteBuf ， 或者 编码成另一我种Java POJO对象 。
+ * 编码器ChannelOutboundHandler出站处理器的实现类， 一个编码器将出站对象编码之后，编码后的数据将被传递到下一个ChannelOutBoundHandler出站
+ * 处理对象，进行后面的出站处理。
+ * 由于最后只有ByteBuf才能写入到通道中去，因此，可以肯定通道流水线上装配的第一个编码器一定是把数据编码成ByteBuf类型，这个问题，为什么编码成ByteBuf
+ * 类型的数据包编码器是在流水线的头部， 而不是流水线的尾部呢？原因很简单，因为出让处理的顺序是从后向前的。
+ *
+ * MessageToMessageDecoder 是一个非常重要的编码基类， 它位于 Netty 的io.netty.handler.codec包中， MessageToByteEncoder的功能是将一个
+ * Java  POJO 对象编码成一个ByteBuf数据包， 它是一个抽象类，仅实现了编码的基础流程， 在编码过程中，通过调用encode抽象方法来完成，但是它的encode
+ * 编码方法是一个抽象方法，没有具体的encode编码逻辑实现， 而实现encode抽象方法的工作需要子类去完成 。
+ *
+ * 如果要实现一个自己的编码器， 则需要继承自MessageToByteEncoder基类， 实现它的encode抽象方法，作为演示，下面实现一个整数编码器， 其功能是将
+ * java 整数编码成二进制ByteBuf 数据包，这个示例代码如下 。
+ *
+ *public class Integer2ByteEncoder extends MessageToByteEncoder<Integer> {
+ *     @Override
+ *     public void encode(ChannelHandlerContext ctx, Integer msg, ByteBuf out)
+ *             throws Exception {
+ *         out.writeInt(msg);
+ *         Logger.info("encoder Integer = " + msg);
+ *     }
+ * }
+ *
+ * 继承MessageToMessageDecoder时，需要带上实参，表示编码之前的Java POJO原类型，在这个示例程序中， 编码之前的类型是Java 整数类型(Integer)
+ * 上面的encode方法实现很简单，将入站的数据对象msg农牧民入到Out实参即可，基类传入的ByteBuf类型的对象，编码完成后，基类MessageToByteEncoder
+ * 会将输出的ByteBuf数据包发送到下一站 。
+ *
+ *
+ *
  */
 public abstract class MessageToMessageDecoder<I> extends ChannelInboundHandlerAdapter {
 

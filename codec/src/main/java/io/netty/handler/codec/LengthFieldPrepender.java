@@ -51,6 +51,9 @@ import java.util.List;
  * + 0x000E | "HELLO, WORLD" |
  * +--------+----------------+
  * </pre>
+ * LengthFieldPrepender 在数据包的前面加上内容的二进制字节数组的长度，这个编码器和LengthFieldBaseedFrameDecoder 解码器是天生一对 。 常常配套使用。
+ * 这组 天仙配 属于Netty 所提供了一组非常重要的编码器和解码器，常常用于Head-Content数据包的传输。
+ *
  */
 @Sharable
 public class LengthFieldPrepender extends MessageToMessageEncoder<ByteBuf> {
@@ -85,6 +88,10 @@ public class LengthFieldPrepender extends MessageToMessageEncoder<ByteBuf> {
      *
      * @throws IllegalArgumentException
      *         if {@code lengthFieldLength} is not 1, 2, 3, 4, or 8
+     * lengthFieldLength :  表示Head 长度字段所占用的字节数，
+     * lengthIncludesLengthFieldLength： 表示Head 字段的总长度值是否包含长度字段自身的字节数，如果该参数的值为true , 表示长度字段的值
+     * 总长度包含了自己的字节数， 如果值为false , 表示长度字段的值仅仅包含Content 内容的二进制数据的长度，一般来说。 lengthIncludesLengthFieldLength
+     * 的值默认为false
      */
     public LengthFieldPrepender(int lengthFieldLength, boolean lengthIncludesLengthFieldLength) {
         this(lengthFieldLength, 0, lengthIncludesLengthFieldLength);

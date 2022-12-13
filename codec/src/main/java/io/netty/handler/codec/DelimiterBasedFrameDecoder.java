@@ -64,6 +64,10 @@ import java.util.List;
  * , 而不是局限于换行符， 如果使用这个解码器，那么接收到的数据包，末尾 必须带上对应的分隔符
  *
  *
+ * 不仅可以使用换行符，还可以将其他的特殊字符作为数据包的分隔符， 例如制表符"\t", 其构造方法如下
+ *
+ *
+ *
  */
 public class DelimiterBasedFrameDecoder extends ByteToMessageDecoder {
 
@@ -97,6 +101,9 @@ public class DelimiterBasedFrameDecoder extends ByteToMessageDecoder {
      * @param stripDelimiter  whether the decoded frame should strip out the
      *                        delimiter or not
      * @param delimiter  the delimiter
+     * maxFrameLength:解码数据包的最大长度
+     * stripDelimiter:解码后数据包是否去掉分隔符，一般选择是
+     * delimiter： 分隔符
      */
     public DelimiterBasedFrameDecoder(
             int maxFrameLength, boolean stripDelimiter, ByteBuf delimiter) {
