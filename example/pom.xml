@@ -199,6 +199,13 @@
     </dependency>
 -->
 
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <version>3.6.1</version>
+    </dependency>
+
+
 
   </dependencies>
 

@@ -36,6 +36,8 @@ import io.netty.handler.codec.MessageToByteEncoder;
  *
  * @see CodedOutputStream
  * @see CodedOutputByteBufferNano
+ *
+ * 这个编码器的作用是，可以在ProtobufEncoder 生成的字节数组前， 前置一个varint32的数字，表示序列化的二进制字节数
  */
 @Sharable
 public class ProtobufVarint32LengthFieldPrepender extends MessageToByteEncoder<ByteBuf> {

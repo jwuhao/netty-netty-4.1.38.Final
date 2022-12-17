@@ -538,6 +538,7 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
         return buffer.retainedSlice(index, length);
     }
 
+    // 程序最终会执行fail()方法并抛出TooLongFrameException异常
     private void fail(long frameLength) {
         if (frameLength > 0) {
             throw new TooLongFrameException(

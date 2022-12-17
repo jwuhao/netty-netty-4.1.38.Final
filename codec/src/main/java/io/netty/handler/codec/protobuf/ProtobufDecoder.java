@@ -61,6 +61,15 @@ import java.util.List;
  *     ch.write(res);
  * }
  * </pre>
+ *
+ *
+ *
+ * ProtobufDecoder 解码器和ProbotufEncoder编码器相互对应，ProtobufDecoder需要指定一个POJO 消息的prototype原型POJO实例， 根据原型实例找到
+ * 对应的Parser解析器，将二进制的字节解析为Protobuf POJO消息对象
+ *
+ * 在Java NIO 通信中，仅仅使用以上这组编码器和解码器会存在粘包/半包的问题，Netty 也提供了配套的Head-Content 类型的Protobuf编码器和解码器，在二进制流前
+ * 加上了二进制字节数组的长度
+ *
  */
 @Sharable
 public class ProtobufDecoder extends MessageToMessageDecoder<ByteBuf> {

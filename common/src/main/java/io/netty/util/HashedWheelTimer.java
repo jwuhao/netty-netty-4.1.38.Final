@@ -90,12 +90,7 @@ import static io.netty.util.internal.StringUtil.simpleClassName;
  *
  *
  从图7-1中可以看出，当指针指向某一刻度时，它会把此刻度中的 所有task任务一一取出并运行。在解读Netty的时间轮代码前，先思考 以下3个问题。
- • 时间轮的指针走一轮是多久?
- • 时间轮是采用什么容器存储这些task的?
- • 定时任务的运行时间若晚于指针走一轮的终点(见图7-1中的 N)，则此时此任务该放在哪个刻度?
 
-
- *
  * 1. 度的间隔时间标注为tickDuration，同时将时间轮一轮的 刻度总数标注为wheelLen，两者都是时间轮的属性，可以通过构造方
  * 法由使用者传入，这样就可以得到时间轮指针走一轮的时长 =tickDuration*wheelLen。
  *
@@ -114,7 +109,8 @@ import static io.netty.util.internal.StringUtil.simpleClassName;
  *
  *
  * 经过对以上3个问题进行的分析，对时间轮的构造有了基本的认 知，了解了时间轮内部属性特征，以及定时任务与刻度的映射关系。 但具体时间轮是如
- * 何运行的，它的指针是如何跳动的。这都需要通过 仔细阅读Netty的时间轮源码来寻找答案。时间轮源码分为两部分:第 一部分包含时间轮的核心属性、初始化构建、启动和定时检测任务的
+ * 何运行的，它的指针是如何跳动的。这都需要通过 仔细阅读Netty的时间轮源码来寻找答案。时间轮源码分为两部分:第 一部分包含时间
+ * 轮的核心属性、初始化构建、启动和定时检测任务的
  *添加;第二部分主要是对时间轮的时钟Worker线程的剖析。线程的核 心功能有时钟指针的刻度跳动、超时任务处理、任务的取消等。
  *
  * 时间轮HashedWheelTimer的核心属性解读如下:
@@ -192,10 +188,14 @@ public class HashedWheelTimer implements Timer {
     private static final AtomicBoolean WARNED_TOO_MANY_INSTANCES = new AtomicBoolean(); // 在服务过程中，时间轮实例个数不能超过64个
     private static final int INSTANCE_COUNT_LIMIT = 64;
     private static final long MILLISECOND_NANOS = TimeUnit.MILLISECONDS.toNanos(1);     // 刻度持续时最小值，不能小于这个最小值
-    private static final ResourceLeakDetector<HashedWheelTimer> leakDetector = ResourceLeakDetectorFactory.instance()               // 内存泄漏检测
-            .newResourceLeakDetector(HashedWheelTimer.class, 1);
+    private static final ResourceLeakDetector<HashedWheelTimer> leakDetector =
+            ResourceLeakDetectorFactory.instance()
 
-    private static final AtomicIntegerFieldUpdater<HashedWheelTimer> WORKER_STATE_UPDATER =                 // 原子性更新时间轮工作状态，防止多线程重复操作
+            .newResourceLeakDetector(HashedWheelTimer.class, 1);  // 内存泄漏检测
+
+    private static final AtomicIntegerFieldUpdater<HashedWheelTimer> WORKER_STATE_UPDATER =
+            // 原子性更新时间轮工作状态，防止多线程重复操作
+
             AtomicIntegerFieldUpdater.newUpdater(HashedWheelTimer.class, "workerState");
 
     private final ResourceLeakTracker<HashedWheelTimer> leak;                   // 内存泄漏检测虚引用
@@ -209,9 +209,11 @@ public class HashedWheelTimer implements Timer {
     private volatile int workerState; // 0 - init, 1 - started, 2 - shut down
 
     private final long tickDuration;                    // 每刻度的持续时间
-    private final HashedWheelBucket[] wheel;                // 此数组用于存储映射在时间轮刻度上的傻
+    // 此数组用于存储映射在时间轮刻度上的
+    private final HashedWheelBucket[] wheel;
+
     private final int mask;                                         // 时间轮总格子数 -1
-    private final CountDownLatch startTimeInitialized = new CountDownLatch(1);                      // 同步计数器，时间轮Workder 线程启动后，将同步给调用时间轮的线程
+    private final CountDownLatch startTimeInitialized = new CountDownLatch(1); // 同步计数器，时间轮Workder 线程启动后，将同步给调用时间轮的线程
 
     // 超时task任务队列，先将任务放入到这个队列中， 再在Worker 线程中队列中取出并放入wheel[]的链表中
     private final Queue<HashedWheelTimeout> timeouts = PlatformDependent.newMpscQueue();
@@ -322,8 +324,10 @@ public class HashedWheelTimer implements Timer {
      * @throws NullPointerException     if either of {@code threadFactory} and {@code unit} is {@code null}
      * @throws IllegalArgumentException if either of {@code tickDuration} and {@code ticksPerWheel} is &lt;= 0
      */
+
+
     public HashedWheelTimer(
-        ThreadFactory threadFactory,
+            ThreadFactory threadFactory,
         long tickDuration, TimeUnit unit, int ticksPerWheel, boolean leakDetection) {
         this(threadFactory, tickDuration, unit, ticksPerWheel, leakDetection, -1);
     }

@@ -328,6 +328,12 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
     }
 
     @Override
+    // 由上述代码可知，Netty 现在已经支持ByteBuf 和FileRegion ,其他类型的消息会被忽略，那么此时，我们如何才能知道写操作成功还是失败呢？我们可以通过如下方法来获取写
+    // 操作的状态
+    // ChannelFuture channelFuture = channelFuture.channel().writeAndFlush(orderOperation);
+    // channelFuture.get();
+    // 上述语句中通过ChannelFuture来获取写操作是否成功，的信息，但运行后会报错， 使用这种方式的后果，如果写过程中遇到错误， channelFuture.get() 在执行过程上抛出异常
+    // Excetion in thread main java.util.concurrent.ExecutionException: java.lang.UnsupportedOperationExcetion:Unsupproted message type
     protected final Object filterOutboundMessage(Object msg) {
         if (msg instanceof ByteBuf) {
             ByteBuf buf = (ByteBuf) msg;

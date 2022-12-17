@@ -32,6 +32,15 @@ import java.io.Serializable;
  * compatible with the standard {@link ObjectInputStream}.  Please use
  * {@link ObjectDecoder} or {@link ObjectDecoderInputStream} to ensure the
  * interoperability with this encoder.
+ *
+ * Netty 的ObjectEncoder 能完成更多的工作
+ * Netty的ObjectEncoder 不仅能够完成数据的序列化工作，还能完成封帧操作，关于封帧
+ *
+ *
+ *
+ *
+
+ *
  */
 @Sharable
 public class ObjectEncoder extends MessageToByteEncoder<Serializable> {
@@ -44,8 +53,10 @@ public class ObjectEncoder extends MessageToByteEncoder<Serializable> {
         ByteBufOutputStream bout = new ByteBufOutputStream(out);
         ObjectOutputStream oout = null;
         try {
+            // 预留4个字节长度
             bout.write(LENGTH_PLACEHOLDER);
             oout = new CompactObjectOutputStream(bout);
+            // 序列化对象
             oout.writeObject(msg);
             oout.flush();
         } finally {
@@ -57,7 +68,7 @@ public class ObjectEncoder extends MessageToByteEncoder<Serializable> {
         }
 
         int endIdx = out.writerIndex();
-
+        // 设置长度字段
         out.setInt(startIdx, endIdx - startIdx - 4);
     }
 }

@@ -39,6 +39,27 @@ import java.util.List;
  *
  * @see CodedInputStream
  * @see CodedInputByteBufferNano
+ *
+ *
+ *
+ * ProtobufVarint32FrameDecoder 和 ProtobufVarint32LengthFieldPrepender 是相互对应的， 其作用是，根据数据包中的varint32 中的长度值
+ * ，解码一个足额的字节的数组，然后将字节数组交给下一站的解码器ProtobufDecoder
+ *
+ * 什么时varint32类型的长度呢？为什么不用int 这种固定的长度呢？
+ *
+ * varint32 是一种紧凑的表示数字的方法，它不是一种具体的数据类型，varint32它用一个或多个字节来表示一个数字，值越小的数字使用越的数字使用越少的
+ * 字节数， 值越大使用的字节数越多， varint32 根据值的大小自动进行长度的收缩， 这能减少用保存长度的字节数，也就是说，varint32 与int
+ * 类型的最大区别，varint32用一个或多个字节来表示一个数字， varint32 不是固定长度，所以为了更好的减少通信过程中的传输量，消息头中的长度尽量采用
+ * varint32格式呢？
+ *
+ * 至此，Netty 的内置Protobuf 的编码器和解码器已经初步介绍完成了，可以通过这两组编码器和解码器完成Length+ProbotufData （Head -Content）
+ * 协议的数据传输，但是，在更加复杂的传输应用场景中，Netty 的内置编码器和解码器是不够用的，例如 ，在Head 部分加上魔数字段进行安全验证
+ * 或者还需要对Protobuf Data的内容进行加密和解密等， 也就是说，在复杂的传输应用场景下， 需要定制属于自己的Probobuf 编码器和解码器。
+ *
+ *
+ *
+ *
+ *
  */
 public class ProtobufVarint32FrameDecoder extends ByteToMessageDecoder {
 

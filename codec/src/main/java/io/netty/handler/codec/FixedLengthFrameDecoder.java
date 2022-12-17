@@ -42,6 +42,8 @@ import java.util.List;
  * 在这种场景下，只需要把这个解码器加到流水线中去，它会把入站ByteBuf 数据包拆分成一个个长度为100的数据包， 然后发往下一个channelHandler
  * 入站处理器，补充说明一下，这里所指的数据包，在Netty中就是一个ByteBuf的实例，注，数据帧，（Frame） ,本书也通称为数据包。
  *
+ *
+ *
  */
 public class FixedLengthFrameDecoder extends ByteToMessageDecoder {
 
@@ -75,6 +77,8 @@ public class FixedLengthFrameDecoder extends ByteToMessageDecoder {
      */
     protected Object decode(
             @SuppressWarnings("UnusedParameters") ChannelHandlerContext ctx, ByteBuf in) throws Exception {
+        // 如果累积的数据充足，大于或等于frameLength，那么至少一个消息对象可以解析出于是读取数据readRetainedSlice() ，解析出消息对象并存放到out中，另外，读取工作本身会改变待累积的数据的可读范围 。
+        // 如果累积的数据不够，那么返回null , 不再读取数据，于量累积的数据保持不变 。
         if (in.readableBytes() < frameLength) {
             return null;
         } else {

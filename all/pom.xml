@@ -720,7 +720,7 @@
       </plugin>
 
       <!-- Disable checkstyle -->
-      <plugin>
+      <!--<plugin>
         <artifactId>maven-checkstyle-plugin</artifactId>
         <executions>
           <execution>
@@ -728,7 +728,7 @@
             <phase>none</phase>
           </execution>
         </executions>
-      </plugin>
+      </plugin>-->
 
       <!-- Disable all plugin executions configured by jar packaging -->
       <plugin>

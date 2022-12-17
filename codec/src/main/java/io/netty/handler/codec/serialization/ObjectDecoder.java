@@ -32,6 +32,9 @@ import java.io.StreamCorruptedException;
  * compatible with the standard {@link ObjectOutputStream}.  Please use
  * {@link ObjectEncoder} or {@link ObjectEncoderOutputStream} to ensure the
  * interoperability with this decoder.
+ *
+ *
+ * 此外 ，ObjectEncoder 对应的解码器继承自LengthFieldBasedFrameDecoder ,并且在构造器中指定lengthFieldLength 参数为4个字节
  */
 public class ObjectDecoder extends LengthFieldBasedFrameDecoder {
 

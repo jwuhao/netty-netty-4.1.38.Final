@@ -57,6 +57,12 @@ import static io.netty.buffer.Unpooled.*;
  *     ch.write(res);
  * }
  * </pre>
+ *
+ *
+ *
+ * ProtobufEncoder 的实现逻辑非常简单，直接使用了message.toByteArray()方法将Protobuf的POJO 消息对象编码成二进制字节，数据放入
+ * Netty 的ByteBuf数据包中 ， 然后交给下一站编码器。
+ *
  */
 @Sharable
 public class ProtobufEncoder extends MessageToMessageEncoder<MessageLiteOrBuilder> {

@@ -181,6 +181,7 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
                     buffer.writeBytes(in);
                 } else {
                     CompositeByteBuf composite;
+                    // 创建CompositeByteBuf ,如果已经创建过了，就不用重复创建了
                     if (cumulation instanceof CompositeByteBuf) {
                         composite = (CompositeByteBuf) cumulation;
                     } else {
@@ -190,6 +191,7 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
                         composite.addComponent(true, cumulation);
                     }
                     // 把ByteBuf也加入到复合缓冲区中
+                    // 避免内存复制
                     composite.addComponent(true, in);
                     // 赋空值，由于ByteBuf 加入复合缓冲区后没有调用retain()方法，因此无须释放
                     in = null;

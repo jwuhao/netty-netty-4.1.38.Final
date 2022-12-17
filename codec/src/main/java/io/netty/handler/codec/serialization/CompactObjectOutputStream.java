@@ -31,6 +31,7 @@ class CompactObjectOutputStream extends ObjectOutputStream {
 
     @Override
     protected void writeStreamHeader() throws IOException {
+        // 相比 JDK 少了writeShort（STAREAM_MAGIC ）
         writeByte(STREAM_VERSION);
     }
 
@@ -39,11 +40,29 @@ class CompactObjectOutputStream extends ObjectOutputStream {
         Class<?> clazz = desc.forClass();
         if (clazz.isPrimitive() || clazz.isArray() || clazz.isInterface() ||
             desc.getSerialVersionUID() == 0) {
+            // 相比JDK 少了很多的信息，比如元信息
             write(TYPE_FAT_DESCRIPTOR);
             super.writeClassDescriptor(desc);
         } else {
             write(TYPE_THIN_DESCRIPTOR);
+            // 但是这也需要类的名称，类的名称在进行反序列化（反射时就会用到）因而很重要
             writeUTF(desc.getName());
+            /**
+             * JDK 的序列化则多了如下信息
+             * out.writeShort(fields.length);
+             * for(int i = 0 ;i < fields.length;i ++){
+             *      ObjectStreamField f = fields[i];
+             *      out.writeByte(f.getTypeCode());
+             *      out.writeUTF(f.getName());
+             *      if( ! f.isPrimitive()){
+             *          out.writeTypeString(f.getTypeString());
+             *      }
+             * }
+             * 少了类的元信息， 如何进行反序列化？ 实际上，我们已经存储了类的名称，因此，当接收到数据之后，就可以直接通过反射得到对应的信息
+             * 通过这种方式，Netty 的ObjectEncoder大大减少了需要传输的数据量
+             *
+             *
+             */
         }
     }
 }

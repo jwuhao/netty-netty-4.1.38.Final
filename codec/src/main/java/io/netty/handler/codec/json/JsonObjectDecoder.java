@@ -39,6 +39,12 @@ import java.util.List;
  * This class does not do any real parsing or validation. A sequence of bytes is considered a JSON object/array
  * if it contains a matching number of opening and closing braces/brackets. It's up to a subsequent
  * {@link ChannelHandler} to parse the JSON text into a more usable form i.e. a POJO.
+ *
+ *  Netty 虽然没有提供了JSON编码器，但提供了一个名为JsonObjectDecoder的解码器， JsonObjectDecoder和普通的JSON解码器又有哪些区别呢？
+ *  它们两者虽然都是解码器， 但目标完全不同，前者的目标是将持续传输的字节流切割成一个一个的JSON字节流， 相当于解帧，后者的目标则是将普通的字符串或
+ *  字节流直接转换为可用的POJO 对象，以上描述可以很抽象，我们不妨参考一下JsonObjectDecoder的几段关键代码，JsonObjectDecoder 的返回对象如代码清单
+ *
+ *
  */
 public class JsonObjectDecoder extends ByteToMessageDecoder {
 
@@ -118,7 +124,10 @@ public class JsonObjectDecoder extends ByteToMessageDecoder {
 
                 // All opening braces/brackets have been closed. That's enough to conclude
                 // that the JSON object/array is complete.
+
                 if (openBraces == 0) {
+                    // 当openBraces为0 ， 说明 { 和 } 已经完全成对出现，JSON 对象或数组可以解析出了
+                    // 当 { 和 } 还没有出现时，调用decodeByte来控制openBrances 数量
                     ByteBuf json = extractObject(ctx, in, in.readerIndex(), idx + 1 - in.readerIndex());
                     if (json != null) {
                         out.add(json);
@@ -188,10 +197,18 @@ public class JsonObjectDecoder extends ByteToMessageDecoder {
      * Override this method if you want to filter the json objects/arrays that get passed through the pipeline.
      */
     @SuppressWarnings("UnusedParameters")
+    // JsonObjectDecoder的返回对象
     protected ByteBuf extractObject(ChannelHandlerContext ctx, ByteBuf buffer, int index, int length) {
         return buffer.retainedSlice(index, length);
     }
+    // 上述代码表明，我们最终解析出来的并不是POJO ,而是字节数组ByteBuf ，要进行转换，还需要做进一步的工作，但是，JsonObjectDecoder 返回无疑已经是完整的且可以解析的
+    // JSON，既然是解帧， 那么JsonObjectDecoder 具体是如何做到的呢？是根据长度字段还是固定字符进行分割的呢？ 既然是解帧，那么JsonObjectDecoder具体是如何做到的呢？
+    // 根据长度字段还是固定字符进行分割，实际上都不是，JsonObjectDecoder 是根据 { 和 } 是否已经完全成对出现，是否已经完全成对的出现来判断JSON字节数组的完整性，
+    // 例如 { "tableId":102 就不是完整的了， 再如{"TableId:102,"nestObject":{"name","myName"} 也不是完整的，因为{和}没有成对出现 。
 
+
+
+    // 控制openBraces变化的decodeByte方法的实现
     private void decodeByte(byte c, ByteBuf in, int idx) {
         if ((c == '{' || c == '[') && !insideString) {
             openBraces++;
