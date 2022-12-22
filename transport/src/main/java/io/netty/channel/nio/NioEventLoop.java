@@ -736,7 +736,9 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             // 1. 当NioEventLoop中的多路复用器Selector轮询到就绪的 SelectionKey时，判断Key的readyOps类型是否为OP_ACCEPT，若是，
             // 则5.1节提到的Key的attachment就是NioServerSocket Channel本身，先获取SelectionKey的attachment对象，再触发此对象的辅助类
             // Unsafe的实现类NioMessageUnsafe的read()方法进行处理。
+            // 处理读请求（断开连接）或接入连接
             if ((readyOps & (SelectionKey.OP_READ | SelectionKey.OP_ACCEPT)) != 0 || readyOps == 0) {
+                //     unsafe.read() 方法负责读取数据并通过pipeline.fireChannelRead(byteBuf ) 方法逐级的读取数据放入到处理程序流水线中 。
                 unsafe.read();
             }
         } catch (CancelledKeyException ignored) {

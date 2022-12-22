@@ -143,6 +143,7 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor im
     }
 
     @Override
+    // 查看当前处理程序绑定的执行器是不是NioEventLoop本身，通过SingleThreadEventExecutor#InEventLoop方法来判断，如果是，直接执行，如果不是，就由绑定的执行器来执行。
     public boolean inEventLoop(Thread thread) {
         return thread == this.thread;
     }

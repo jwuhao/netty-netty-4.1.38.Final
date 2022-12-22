@@ -151,6 +151,7 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
     // 整个读取数据的过程涉及的Handler都是以 HeadContext开头的，按顺序运行用户自定义的各个解码器和服务端业 务逻辑处理Handler。
     protected int doReadMessages(List<Object> buf) throws Exception {
         // 调用serverSocketChannel.accept()监听新加入的链接
+        // 因此可以接收连接了，在服务器接收到连接之后，创建连接的过程就是创建SocketChannel
         SocketChannel ch = SocketUtils.accept(javaChannel());
 
         try {

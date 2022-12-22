@@ -82,6 +82,8 @@ public abstract class MultithreadEventLoopGroup extends MultithreadEventExecutor
     protected abstract EventLoop newChild(Executor executor, Object... args) throws Exception;
 
     @Override
+    // 在有了Selector （NioEventLoop的成员）和ServerSocketChannel之后，我们需要将它们绑定起来，也就是把ServerSocketChannel绑定到bossGroup 中的NioEventLoop(select)上
+    // 下面是具体的注册过程
     public ChannelFuture register(Channel channel) {
         return next().register(channel);
     }

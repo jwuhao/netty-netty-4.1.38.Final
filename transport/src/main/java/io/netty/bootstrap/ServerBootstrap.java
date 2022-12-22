@@ -305,6 +305,7 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
             }
 
             try {
+                // 这个方法负责对创建后的链接执行如下语句完成注册
                 childGroup.register(child).addListener(new ChannelFutureListener() {
                     @Override
                     public void operationComplete(ChannelFuture future) throws Exception {

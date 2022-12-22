@@ -353,6 +353,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         return this;
     }
 
+    // 将读数据放到处理程序的流水线中
     static void invokeChannelRead(final AbstractChannelHandlerContext next, Object msg) {
         final Object m = next.pipeline.touch(ObjectUtil.checkNotNull(msg, "msg"), next);
         EventExecutor executor = next.executor();

@@ -31,6 +31,7 @@ public class ReflectiveChannelFactory<T extends Channel> implements ChannelFacto
     public ReflectiveChannelFactory(Class<? extends T> clazz) {
         ObjectUtil.checkNotNull(clazz, "clazz");
         try {
+            // 获取无参的构造函数
             this.constructor = clazz.getConstructor();
         } catch (NoSuchMethodException e) {
             throw new IllegalArgumentException("Class " + StringUtil.simpleClassName(clazz) +
@@ -39,8 +40,10 @@ public class ReflectiveChannelFactory<T extends Channel> implements ChannelFacto
     }
 
     @Override
+    // 泛型T 代表不同的Channel
     public T newChannel() {
         try {
+            // 使用反射技术创建channel
             return constructor.newInstance();
         } catch (Throwable t) {
             throw new ChannelException("Unable to create Channel from class " + constructor.getDeclaringClass(), t);
