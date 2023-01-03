@@ -45,7 +45,7 @@ public class NettyEchoClient {
                 protected void initChannel(SocketChannel ch) throws Exception {
                     // pipeline管理子通道channel中的Handler
                     // 向子channel流水线添加一个handler处理器
-                    ch.pipeline().addLast(NettyEchoClientHandler.INSTANCE);
+                    ch.pipeline().addLast(NettyEchoServerHandler.INSTANCE);
                 }
             });
             ChannelFuture f = b.connect();

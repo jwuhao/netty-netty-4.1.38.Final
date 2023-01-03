@@ -1,7 +1,7 @@
 package io.netty.echoServer;
 
 import io.netty.actual.combat.e1.Logger;
-import io.netty.actual.combat.e1.NettyEchoClientHandler;
+import io.netty.actual.combat.e1.NettyEchoServerHandler;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
@@ -65,7 +65,7 @@ public class NettyDumpSendClient {
                 protected void initChannel(SocketChannel ch) throws Exception {
                     // pipeline管理子通道channel中的Handler
                     // 向子channel流水线添加一个handler处理器
-                    ch.pipeline().addLast(NettyEchoClientHandler.INSTANCE);
+                    ch.pipeline().addLast(NettyEchoServerHandler.INSTANCE);
                 }
             });
             ChannelFuture f = b.connect();
