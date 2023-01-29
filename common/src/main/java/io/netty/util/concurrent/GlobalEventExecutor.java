@@ -35,16 +35,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * task pending in the task queue for 1 second.  Please note it is not scalable to schedule large number of tasks to
  * this executor; use a dedicated executor.
  */
-public final class GlobalEventExecutor extends AbstractScheduledEventExecutor implements OrderedEventExecutor {
+public class GlobalEventExecutor extends AbstractScheduledEventExecutor implements OrderedEventExecutor {
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(GlobalEventExecutor.class);
 
-    private static final long SCHEDULE_QUIET_PERIOD_INTERVAL = TimeUnit.SECONDS.toNanos(1);
+    public static final long SCHEDULE_QUIET_PERIOD_INTERVAL = TimeUnit.SECONDS.toNanos(1);
 
     public static final GlobalEventExecutor INSTANCE = new GlobalEventExecutor();
 
-    final BlockingQueue<Runnable> taskQueue = new LinkedBlockingQueue<Runnable>();
-    final ScheduledFutureTask<Void> quietPeriodTask = new ScheduledFutureTask<Void>(
+    public final BlockingQueue<Runnable> taskQueue = new LinkedBlockingQueue<Runnable>();
+    public final ScheduledFutureTask<Void> quietPeriodTask = new ScheduledFutureTask<Void>(
             this, Executors.<Void>callable(new Runnable() {
         @Override
         public void run() {
@@ -56,14 +56,14 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor im
     // can trigger the creation of a thread from arbitrary thread groups; for this reason, the thread factory must not
     // be sticky about its thread group
     // visible for testing
-    final ThreadFactory threadFactory;
+    public  ThreadFactory threadFactory;
     private final TaskRunner taskRunner = new TaskRunner();
     private final AtomicBoolean started = new AtomicBoolean();
     volatile Thread thread;
 
     private final Future<?> terminationFuture = new FailedFuture<Object>(this, new UnsupportedOperationException());
 
-    private GlobalEventExecutor() {
+    public GlobalEventExecutor() {
         scheduledTaskQueue().add(quietPeriodTask);
         threadFactory = ThreadExecutorMap.apply(new DefaultThreadFactory(
                 DefaultThreadFactory.toPoolName(getClass()), false, Thread.NORM_PRIORITY, null), this);
@@ -74,7 +74,7 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor im
      *
      * @return {@code null} if the executor thread has been interrupted or waken up.
      */
-    Runnable takeTask() {
+    public Runnable takeTask() {
         BlockingQueue<Runnable> taskQueue = this.taskQueue;
         for (;;) {
             ScheduledFutureTask<?> scheduledTask = peekScheduledTask();
@@ -112,7 +112,7 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor im
         }
     }
 
-    private void fetchFromScheduledTaskQueue() {
+    public void fetchFromScheduledTaskQueue() {
         long nanoTime = AbstractScheduledEventExecutor.nanoTime();
         Runnable scheduledTask = pollScheduledTask(nanoTime);
         while (scheduledTask != null) {
@@ -135,7 +135,7 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor im
      * Add a task to the task queue, or throws a {@link RejectedExecutionException} if this instance was shutdown
      * before.
      */
-    private void addTask(Runnable task) {
+    public void addTask(Runnable task) {
         if (task == null) {
             throw new NullPointerException("task");
         }
@@ -217,7 +217,7 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor im
         }
     }
 
-    private void startThread() {
+    public void startThread() {
         if (started.compareAndSet(false, true)) {
             final Thread t = threadFactory.newThread(taskRunner);
             // Set to null to ensure we not create classloader leaks by holds a strong reference to the inherited

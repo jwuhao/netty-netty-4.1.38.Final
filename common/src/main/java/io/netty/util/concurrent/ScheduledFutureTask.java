@@ -26,35 +26,35 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 @SuppressWarnings("ComparableImplementedButEqualsNotOverridden")
-final class ScheduledFutureTask<V> extends PromiseTask<V> implements ScheduledFuture<V>, PriorityQueueNode {
+public final class ScheduledFutureTask<V> extends PromiseTask<V> implements ScheduledFuture<V>, PriorityQueueNode {
     private static final AtomicLong nextTaskId = new AtomicLong();
     private static final long START_TIME = System.nanoTime();
 
-    static long nanoTime() {
+    public static long nanoTime() {
         return System.nanoTime() - START_TIME;
     }
 
-    static long deadlineNanos(long delay) {
+    public static long deadlineNanos(long delay) {
         long deadlineNanos = nanoTime() + delay;
         // Guard against overflow
         return deadlineNanos < 0 ? Long.MAX_VALUE : deadlineNanos;
     }
 
-    private final long id = nextTaskId.getAndIncrement();
-    private long deadlineNanos;
+    public final long id = nextTaskId.getAndIncrement();
+    public long deadlineNanos;
     /* 0 - no repeat, >0 - repeat at fixed rate, <0 - repeat with fixed delay */
-    private final long periodNanos;
+    public final long periodNanos;
 
-    private int queueIndex = INDEX_NOT_IN_QUEUE;
+    public int queueIndex = INDEX_NOT_IN_QUEUE;
 
-    ScheduledFutureTask(
+    public ScheduledFutureTask(
             AbstractScheduledEventExecutor executor,
             Runnable runnable, V result, long nanoTime) {
 
         this(executor, toCallable(runnable, result), nanoTime);
     }
 
-    ScheduledFutureTask(
+    public ScheduledFutureTask(
             AbstractScheduledEventExecutor executor,
             Callable<V> callable, long nanoTime, long period) {
 
@@ -66,7 +66,7 @@ final class ScheduledFutureTask<V> extends PromiseTask<V> implements ScheduledFu
         periodNanos = period;
     }
 
-    ScheduledFutureTask(
+    public ScheduledFutureTask(
             AbstractScheduledEventExecutor executor,
             Callable<V> callable, long nanoTime) {
 
