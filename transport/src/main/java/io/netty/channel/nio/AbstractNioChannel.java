@@ -429,6 +429,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
                  * 把Channel 注册到EventLoop线程的Selector上
                  * 对于注册后返回的SelectionKey，需要为其设置Channel 感兴趣的事件
                  */
+                logger.info("doRegister this is " + this.getClass().getName());
                 selectionKey = javaChannel().register(eventLoop().unwrappedSelector(), 0, this);
                 return;
             } catch (CancelledKeyException e) {
@@ -469,6 +470,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
 
         final int interestOps = selectionKey.interestOps();
         if ((interestOps & readInterestOp) == 0) {
+            logger.info("doBeginRead 的interestOps = " + interestOps + "，interestOps="+interestOps);
             selectionKey.interestOps(interestOps | readInterestOp);
         }
     }

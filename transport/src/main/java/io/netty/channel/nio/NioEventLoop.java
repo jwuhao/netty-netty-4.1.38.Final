@@ -444,7 +444,11 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 try {
                     // 根据是否有任务获取策略， 默认策略， 当有任务时，返回selector.selectNow()
                     // 当无任务时，返回SelectStrategy.SELECT
-                    switch (selectStrategy.calculateStrategy(selectNowSupplier, hasTasks())) {
+                    // 1. selectNow():获取当前是否有事件就绪，该方法立即返回结果，不会阻塞；如果返回值>0，则代表存在一个或多个
+                    // 2. select(long timeout):selectNow的阻塞超时方法，超时时间内，有事件就绪时才会返回；否则超过时间也会返回
+                    // 3. select():selectNow的阻塞方法，直到有事件就绪时才会返回
+                    int selected = selectStrategy.calculateStrategy(selectNowSupplier, hasTasks());
+                    switch (selected) {
                         case SelectStrategy.CONTINUE:
                             continue;
 
@@ -496,11 +500,13 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                             // }
                             // 由上述代码可以发现，多次同时调用wakeup()方法与调用一次没有区别，因为InterruptTriggered第一次调用后就为true
                             // ,后续再调用会立刻返回，在默认情况下，其他线程添加任务到taskQueue队列中后，会调用NioEventLoop的wakeup()方法
-                        if (wakenUp.get()) {
-                            selector.wakeup();
-                        }
-                        // fall through
-                    default:
+                            if (wakenUp.get()) {
+                                // 4. wakeup():调用该方法会时，阻塞在select()处的线程会立马返回；(ps：下面一句划重点)即使当前不存在线程阻塞在select()处，
+                                //    那么下一个执行select()方法的线程也会立即返回结果，相当于执行了一次selectNow()方法
+                                selector.wakeup();
+                            }
+                            // fall through
+                        default:
                     }
                 } catch (IOException e) {
                     // If we receive an IOException here its because the Selector is messed up. Let's rebuild
@@ -532,6 +538,8 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                         // Ensure we always run tasks.
                         final long ioTime = System.nanoTime() - ioStartTime;
                         // 按一定的比例执行任务，可能遗留一部分任务等待下次执行
+                        // ioRatio 值默认为50% ,因此执行任务的时间和processSelectedKeys()方法处理时间相等
+                        // 如果执行任务的时间超过processSelectedKeys()的处理时间，则留着下一次执行
                         runAllTasks(ioTime * (100 - ioRatio) / ioRatio);
                     }
                 }
@@ -709,12 +717,13 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             int readyOps = k.readyOps();
             // We first need to call finishConnect() before try to trigger a read(...) or write(...) as otherwise
             // the NIO JDK channel implementation may throw a NotYetConnectedException.
+            // 如果是OP_CONNECT事件，则设置为OP_READ ，OP_WRITE，OP_ACCEPT 事件
             if ((readyOps & SelectionKey.OP_CONNECT) != 0) {
                 // remove OP_CONNECT as otherwise Selector.select(..) will always return without blocking
                 // See https://github.com/netty/netty/issues/924
                 int ops = k.interestOps();
-                ops &= ~SelectionKey.OP_CONNECT;
-                k.interestOps(ops);
+                ops &= ~SelectionKey.OP_CONNECT; // 非OP_CONNECT事件，即 OP_READ, OP_WRITE , OP_ACCEPT
+                k.interestOps(ops); //  可以通过interestOps(int ops)方法修改事件列表
 
                 unsafe.finishConnect();
             }
@@ -738,9 +747,10 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             // Unsafe的实现类NioMessageUnsafe的read()方法进行处理。
             // 处理读请求（断开连接）或接入连接
             if ((readyOps & (SelectionKey.OP_READ | SelectionKey.OP_ACCEPT)) != 0 || readyOps == 0) {
-                //     unsafe.read() 方法负责读取数据并通过pipeline.fireChannelRead(byteBuf ) 方法逐级的读取数据放入到处理程序流水线中 。
+                // unsafe.read() 方法负责读取数据并通过pipeline.fireChannelRead(byteBuf ) 方法逐级的读取数据放入到处理程序流水线中 。
                 unsafe.read();
             }
+
         } catch (CancelledKeyException ignored) {
             unsafe.close(unsafe.voidPromise());
         }
@@ -844,7 +854,11 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             long selectDeadLineNanos = currentTimeNanos + delayNanos(currentTimeNanos);
             // 死循环
             for (; ; ) {
-                // 获取距离定时任务触发时间的时长 （四舍五入）
+                // 获取距离定时任务触发时间的时长 （四舍五入），单位毫秒
+                // 1 纳秒与下面参数对比
+                // 1 秒等于  1 000 000 000 纳秒
+                //                500 000
+                //              1 000 000
                 long timeoutMillis = (selectDeadLineNanos - currentTimeNanos + 500000L) / 1000000L;
                 // 已经触发或超时
                 if (timeoutMillis <= 0) {

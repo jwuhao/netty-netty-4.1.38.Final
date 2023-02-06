@@ -331,7 +331,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         }
 
         // 调用SingleThreadEventLoop 的register()方法 ，最终触发AbstractUnsafe的register
-        // 这里的group()指的就是boss ``````group
+        // 这里的group()指的就是bossGroup
         ChannelFuture regFuture = config().group().register(channel);
         // 注册异常处理
         if (regFuture.cause() != null) {
