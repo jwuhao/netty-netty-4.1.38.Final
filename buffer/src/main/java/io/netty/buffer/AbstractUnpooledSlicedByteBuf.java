@@ -36,7 +36,6 @@ abstract class AbstractUnpooledSlicedByteBuf extends AbstractDerivedByteBuf {
     AbstractUnpooledSlicedByteBuf(ByteBuf buffer, int index, int length) {
         super(length);
         checkSliceOutOfBounds(index, length, buffer);
-
         if (buffer instanceof AbstractUnpooledSlicedByteBuf) {
             this.buffer = ((AbstractUnpooledSlicedByteBuf) buffer).buffer;
             adjustment = ((AbstractUnpooledSlicedByteBuf) buffer).adjustment + index;

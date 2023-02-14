@@ -169,10 +169,17 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
             ByteBuf byteBuf = null;
             boolean close = false;
             try {
+                //当对端发送一个超大的数据包时，TCP会拆包。
+                //        OP_READ事件只会触发一次，Netty需要循环读，默认最多读16次,因此ChannelRead()可能会触发多次，拿到的是半包数据。
+                //        如果16次没把数据读完，没有关系，下次select()还会继续处理。
+                //        对于Selector的可读事件，如果你没有读完数据，它会一直返回。
                 do {
                     // 分配内存 ,allocator根据计算器Handle计算此次需要分配多少内存并从内存池中分配
+                    //  分配一个ByteBuf，大小能容纳可读数据，又不过于浪费空间。
                     byteBuf = allocHandle.allocate(allocator);
                     // 读取通道接收缓冲区的数据 ， 设置最后一次分配内存大小加上每次读取的字节数
+                    // doReadBytes(byteBuf):ByteBuf内部有ByteBuffer，底层还是调用了SocketChannel.read(ByteBuffer)
+                    // allocHandle.lastBytesRead()根据读取到的实际字节数，自适应调整下次分配的缓冲区大小。
                     allocHandle.lastBytesRead(doReadBytes(byteBuf));
                     if (allocHandle.lastBytesRead() <= 0) {
                         // nothing was read. release the buffer.
@@ -188,7 +195,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                         }
                         break;
                     }
-                    // 更新读取消息计数器
+                    // 更新读取消息计数器, 递增已经读取的消息数量
                     allocHandle.incMessagesRead(1);
                     readPending = false;
                     // 通知通道处理读取数据，触发Channel管道的fireChannelRead事件

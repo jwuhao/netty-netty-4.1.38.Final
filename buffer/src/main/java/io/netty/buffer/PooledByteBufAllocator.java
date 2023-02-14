@@ -316,7 +316,7 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator implements 
     }
 
     @Override
-    protected ByteBuf newHeapBuffer(int initialCapacity, int maxCapacity) {
+    public ByteBuf newHeapBuffer(int initialCapacity, int maxCapacity) {
         PoolThreadCache cache = threadCache.get();
         PoolArena<byte[]> heapArena = cache.heapArena;
 
@@ -333,7 +333,7 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator implements 
     }
 
     @Override
-    protected ByteBuf newDirectBuffer(int initialCapacity, int maxCapacity) {
+    public ByteBuf newDirectBuffer(int initialCapacity, int maxCapacity) {
         PoolThreadCache cache = threadCache.get();
         PoolArena<ByteBuffer> directArena = cache.directArena;
 

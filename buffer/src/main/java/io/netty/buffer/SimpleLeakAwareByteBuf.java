@@ -22,7 +22,7 @@ import io.netty.util.internal.ObjectUtil;
 
 import java.nio.ByteOrder;
 
-class SimpleLeakAwareByteBuf extends WrappedByteBuf {
+public class SimpleLeakAwareByteBuf extends WrappedByteBuf {
 
     /**
      * This object's is associated with the {@link ResourceLeakTracker}. When {@link ResourceLeakTracker#close(Object)}

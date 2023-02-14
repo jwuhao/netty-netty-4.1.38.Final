@@ -328,7 +328,7 @@ final class PoolChunk<T> implements PoolChunkMetric {
      */
     private int allocateNode(int d) {
         int id = 1;
-
+        // d 是申请的内存在PoolChunk 二叉树中的调试值，若内存为8KB,则d为11
         int initial = - (1 << d); // has last d bits = 0 and rest all = 1         掩码，与id进行与操作后，若> 0 ，则说明id 对应的调试大于或等于d
         byte val = value(id);                            // 为memoryMap[id]
         if (val > d) { // unusable                       // 若当前分配的空间无法满足要求 ， 则直接返回-1，分配失败

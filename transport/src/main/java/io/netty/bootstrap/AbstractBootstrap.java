@@ -27,6 +27,7 @@ import io.netty.channel.EventLoop;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.ReflectiveChannelFactory;
 import io.netty.util.AttributeKey;
+import io.netty.util.LogUtils;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import io.netty.util.internal.ObjectUtil;
@@ -289,6 +290,8 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             // 由于注册操作由NioEventLoop线程去异步执行，因此可能会执行不完，此时需要返回 PendingRegistrationPromise 对象，及时将结果交互给主线程
             final PendingRegistrationPromise promise = new PendingRegistrationPromise(channel);
             // 加上注册监听器，注册动作完成后触发
+
+            LogUtils.info("doBind 的 regFuture addListener before ");
             regFuture.addListener(new ChannelFutureListener() {
                 @Override
                 public void operationComplete(ChannelFuture future) throws Exception {
@@ -307,6 +310,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
                     }
                 }
             });
+            LogUtils.info("doBind 的 regFuture addListener after ");
             return promise;
         }
     }

@@ -743,13 +743,14 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
 
             // 1. 当NioEventLoop中的多路复用器Selector轮询到就绪的 SelectionKey时，判断Key的readyOps类型是否为OP_ACCEPT，若是，
-            // 则5.1节提到的Key的attachment就是NioServerSocket Channel本身，先获取SelectionKey的attachment对象，再触发此对象的辅助类
+            // 则5.1节提到的Key的attachment就是 NioServerSocketChannel本身，先获取SelectionKey的attachment对象，再触发此对象的辅助类
             // Unsafe的实现类NioMessageUnsafe的read()方法进行处理。
             // 处理读请求（断开连接）或接入连接
             if ((readyOps & (SelectionKey.OP_READ | SelectionKey.OP_ACCEPT)) != 0 || readyOps == 0) {
                 // unsafe.read() 方法负责读取数据并通过pipeline.fireChannelRead(byteBuf ) 方法逐级的读取数据放入到处理程序流水线中 。
                 unsafe.read();
             }
+
 
         } catch (CancelledKeyException ignored) {
             unsafe.close(unsafe.voidPromise());
@@ -812,14 +813,18 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     @Override
     //  这段代码表示变量在wakenUp为false的情况下，会触发Selector的wakeup操作，再思考，若在添加任务时成功触发唤醒，那么为什么NioEventLoop
     // 在调用select()方法后还要再次调用wakenUp呢？这段代码源码注释非常长，有点难以理解，具体如下
-    // 1. wakenUp唤醒动作可能在NioEventLoop线程运行的两个阶段被触发，第一阶段有可能在NioEventLoop线程运行于wakeUp.getAndSet(false)
-    // 与selector.select(timeoutMillis)之间，此时Selector.select能立刻返回，最新任务得到及时执行
-    // 第二个阶段可能在selector.select(timeoutMillis)与runAllTasks之间，此时在runAllTasks执行完本次任务后又添加了新任务，这些任务是无法被及时唤醒的
+    // 1. wakenUp唤醒动作可能在NioEventLoop线程运行的两个阶段被触发
+    //
+    // 第一阶段有可能在NioEventLoop线程运行于wakeUp.getAndSet(false)
+    // 与selector.select(timeoutMillis)之间，此时Selector.select()能立刻返回，最新任务得到及时执行
+    //
+    // 第二个阶段可能在selector.select(timeoutMillis)与runAllTasks之间，此时在runAllTasks执行完本次任务后又添加了新任务，
+    // 这些任务是无法被及时唤醒的
     // 因此此时wakenUp为true, 其他的唤醒操作都会失败，从而导致这部分任务需要等待select超时后才会被执行。
     // 这对于实时性要求很敲打程序来讲是无法接受的， 因此在selector.select(timeMillis)与runAllTasks中间加入了if(wakenUp.get())，即
     // 若是唤醒动作，则预期唤醒一次，附上后续唤醒操作失败
-    // 2.但由于本书是Netty版本，在select()方法里， 调用hasTask()查看任务队列是否有任务，且在进入select()方法之前，会把wakenUp设置为false
-    // ,所以wakenUp.compareAndSet(false,true) 会成功，因此，当添加新任务时会调用selectNow()方法，不会等到超时才执行任务，此时无须
+    // 2.但由于4.1.38的Netty版本，在select()方法里， 调用hasTask()查看任务队列是否有任务，且在进入select()方法之前，会把wakenUp设置为false
+    // ,所以wakenUp.compareAndSet(false,true) 一定会成功，因此，当添加新任务时会调用selectNow()方法，不会等到超时才执行任务，此时无须
     // 在select()方法后再次调用wakeup()方法
     // 3. wakeup()方法操作耗时性能，因此建议在非复杂处理时，尽量不要开额外的线程
     protected void wakeup(boolean inEventLoop) {
@@ -843,7 +848,6 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
     }
 
-    //
     private void select(boolean oldWakenUp) throws IOException {
         Selector selector = this.selector;
         try {
@@ -894,6 +898,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 selectCnt ++;
                 // 若轮询到selectKeys不为0或  oldWakenUp 的参数为true
                 // 或有线程设置 wakenUp 为true , 或任务队列和定时任务队列的值
+
                 if (selectedKeys != 0 || oldWakenUp || wakenUp.get() || hasTasks() || hasScheduledTasks()) {
                     // - Selected something,
                     // - waken up by user, or

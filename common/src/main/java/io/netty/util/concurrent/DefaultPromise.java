@@ -15,6 +15,7 @@
  */
 package io.netty.util.concurrent;
 
+import io.netty.util.LogUtils;
 import io.netty.util.internal.InternalThreadLocalMap;
 import io.netty.util.internal.PlatformDependent;
 import io.netty.util.internal.StringUtil;
@@ -214,8 +215,10 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
         synchronized (this) {
             while (!isDone()) {
                 incWaiters();
+                LogUtils.info("waiters = " + waiters );
                 try {
                     wait();
+                    LogUtils.info("等待结束===");
                 } finally {
                     decWaiters();
                 }

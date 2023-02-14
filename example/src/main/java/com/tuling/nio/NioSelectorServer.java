@@ -39,6 +39,8 @@ public class NioSelectorServer {
                 // 如果是OP_ACCEPT事件，则进行连接获取和事件注册
                 if (key.isAcceptable()) {
                     ServerSocketChannel server = (ServerSocketChannel) key.channel();
+
+
                     SocketChannel socketChannel = server.accept();
                     socketChannel.configureBlocking(false);
                     // 这里只注册了读事件，如果需要给客户端发送数据可以注册写事件

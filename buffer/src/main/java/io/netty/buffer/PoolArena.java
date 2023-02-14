@@ -43,25 +43,7 @@ import static java.lang.Math.max;
  * 把PoolChunk划分到不同 的 PoolChunkList 中 。 PoolChunkList 有 两 个 属 性 ， 即 minUsage 和 maxUsage。当PoolChunk的利用率高于
  * 其所在的PoolChunkList的 maxUsage的利用率时，PoolChunk会从当前的PoolChunkList移动到下 一个PoolChunkList中;否则会移动到上一个
  * PoolChunkList中。这6个 PoolChunkList的存储情况如下。
- *
- * 1. qInit:存储内存利用率为[0%,25%)的PoolChunk，qInit的 preList是其本身、nexList为q000;minUsage为Integer.MIN_VALUE。 当PoolChunk在最开始创建时，
- * 如果其内存分配一直小于25%，那么即 使被完全释放，也不会被回收，会一直留在内存中。
- *
- * 2. q000:存储内存利用率为[1%,50%)的PoolChunk，其preList为 null、nexList为q025。PoolChunk进入q000列表后，当其内存被完全 释放，
- * 即内存利用率为0时，从q000链表中直接删除PoolChunk，释放 物理内存，主要是为了避免PoolChunk越来越多，导致内存被占满。
- *
- * 3. q025:存储内存利用率为[25%,75%)的PoolChunk，其preList为 q000、nexList为q050。为了避免PoolChunk在临界点时来回地在q000 和q025链表间移动，它们两个链表的存储范围有一定的重叠。
- *
- * 4. q050:存储内存利用率为[50%,100%)的PoolChunk，其preList 为q025、nexList为q075。为了能提高内存分配的成功率，同时让 PoolChunk的利用率保持在
- * 一个较高的水平，PoolArena在分配内存 时，选择从q050链表开始，尤其是在高峰期，由于请求量是平时的好 几倍，创建的PoolChunk也是平时的好几倍，
- * 若先从q000开始，则在高 峰期创建的大量PoolChunk的回收概率会大大降低，延缓了内存的回收 进度，造成大量内存的浪费。
- *
- * 5. q075:存储内存利用率为[75%,100%)的PoolChunk，其preList 为q50、nexList为q100。它的内存利用率比较高，主要是在q050与 q100间做个缓冲，
- * 为了让内存为利用率等于100%的PoolChunk在回收了 一小部分内存时不会很快进入q050，否则下回分配可能又会被优选选 中，导致内存利用率一直在100%
- * 的边缘。因此PoolArena在分配内存时 把q075放在了最后。
- *
- * 6. q100:存储内存利用率为100%的PoolChunk，其preList为 q075、nexList为null，无法再继续分配，只能等待释放。
- *
+
  *
  * 除了线程本地缓存PoolThreadCache，关于PoolArena的内存分配 和 回 收 基 本 上 已 经 了 解 了 。 PoolThreadCache 中 有 多 个 MemoryRegionCache
  * 数 组 ， 每 种 类 型 的 内 存 都 有 一 个 MemoryRegionCache数组与之对应。MemoryRegionCache中有个队列， 这个队列主要是用来存放内存对象的，具体源码此处就不讲解了。
@@ -71,7 +53,7 @@ import static java.lang.Math.max;
  * NioSocketChannel 数 据 时 ， 需 要 调 用 PooledByteBufAllocator去分配内存，具体分配多少内存，由Handle 的guess()方法决定，此方法只预测所需
  * 的缓冲区的大小，不进行实际 的 分 配 。 PooledByteBufAllocator 从 PoolThreadLocalCache 中 获 取 PoolArena，最终的内存分配工作由PoolArena完成。
  */
-abstract class PoolArena<T> implements PoolArenaMetric {
+public abstract class PoolArena<T> implements PoolArenaMetric {
     static final boolean HAS_UNSAFE = PlatformDependent.hasUnsafe();
 
     enum SizeClass {
@@ -95,11 +77,23 @@ abstract class PoolArena<T> implements PoolArenaMetric {
     private final PoolSubpage<T>[] tinySubpagePools;
     private final PoolSubpage<T>[] smallSubpagePools;
 
+    // 4. q050:存储内存利用率为[50%,100%)的PoolChunk，其preList 为q025、nexList为q075。为了能提高内存分配的成功率，同时让 PoolChunk的利用率保持在
+    //  一个较高的水平，PoolArena在分配内存 时，选择从q050链表开始，尤其是在高峰期，由于请求量是平时的好 几倍，创建的PoolChunk也是平时的好几倍，
+    //  若先从q000开始，则在高 峰期创建的大量PoolChunk的回收概率会大大降低，延缓了内存的回收 进度，造成大量内存的浪费。
     private final PoolChunkList<T> q050;
+    // 3. q025:存储内存利用率为[25%,75%)的PoolChunk，其preList为 q000、nexList为q050。为了避免PoolChunk在临界点时来回地在q000 和q025链表间移动，它们两个链表的存储范围有一定的重叠。
     private final PoolChunkList<T> q025;
+    // 2. q000:存储内存利用率为[1%,50%)的PoolChunk，其preList为 null、nexList为q025。PoolChunk进入q000列表后，当其内存被完全 释放，
+    // 即内存利用率为0时，从q000链表中直接删除PoolChunk，释放 物理内存，主要是为了避免PoolChunk越来越多，导致内存被占满。
     private final PoolChunkList<T> q000;
+    // 1. qInit:存储内存利用率为[0%,25%)的PoolChunk，qInit的 preList是其本身、nexList为q000;minUsage为Integer.MIN_VALUE。 当PoolChunk在最开始创建时，
+    // 如果其内存分配一直小于25%，那么即 使被完全释放，也不会被回收，会一直留在内存中
     private final PoolChunkList<T> qInit;
+    //5. q075:存储内存利用率为[75%,100%)的PoolChunk，其preList 为q50、nexList为q100。它的内存利用率比较高，主要是在q050与 q100间做个缓冲，
+    // 为了让内存为利用率等于100%的PoolChunk在回收了 一小部分内存时不会很快进入q050，否则下回分配可能又会被优选选 中，导致内存利用率一直在100%
+    // 的边缘。因此PoolArena在分配内存时 把q075放在了最后。
     private final PoolChunkList<T> q075;
+    // 6. q100:存储内存利用率为100%的PoolChunk，其preList为 q075、nexList为null，无法再继续分配，只能等待释放。
     private final PoolChunkList<T> q100;
 
     private final List<PoolChunkListMetric> chunkListMetrics;
@@ -381,7 +375,7 @@ abstract class PoolArena<T> implements PoolArenaMetric {
         return table[tableIdx];
     }
 
-    int normalizeCapacity(int reqCapacity) {                // 内存被划分成固定大小的内存单元，会根据请求的内存进行计算匹配最接过的内存单元
+    public int normalizeCapacity(int reqCapacity) {                // 内存被划分成固定大小的内存单元，会根据请求的内存进行计算匹配最接过的内存单元
         checkPositiveOrZero(reqCapacity, "reqCapacity");
 
         if (reqCapacity >= chunkSize) {
@@ -766,9 +760,8 @@ abstract class PoolArena<T> implements PoolArenaMetric {
         }
     }
 
-    static final class DirectArena extends PoolArena<ByteBuffer> {
-
-        DirectArena(PooledByteBufAllocator parent, int pageSize, int maxOrder,
+    public static final class DirectArena extends PoolArena<ByteBuffer> {
+        public DirectArena(PooledByteBufAllocator parent, int pageSize, int maxOrder,
                 int pageShifts, int chunkSize, int directMemoryCacheAlignment) {
             super(parent, pageSize, maxOrder, pageShifts, chunkSize,
                     directMemoryCacheAlignment);
@@ -780,7 +773,7 @@ abstract class PoolArena<T> implements PoolArenaMetric {
         }
 
         // mark as package-private, only for unit test
-        int offsetCacheLine(ByteBuffer memory) {
+        public int offsetCacheLine(ByteBuffer memory) {
             // We can only calculate the offset if Unsafe is present as otherwise directBufferAddress(...) will
             // throw an NPE.
             int remainder = HAS_UNSAFE

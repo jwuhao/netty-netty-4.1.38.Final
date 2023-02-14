@@ -68,6 +68,14 @@ final class ChannelHandlerMask {
                 }
             };
 
+
+    public static void main(String[] args) {
+        System.out.println(Integer.toBinaryString(MASK_ALL_INBOUND));
+        System.out.println("MASK_ALL_OUTBOUND="+Integer.toBinaryString(MASK_ALL_OUTBOUND));
+        System.out.println("~MASK_BIND="+Integer.toBinaryString(~MASK_BIND));
+        System.out.println("MASK_BIND="+Integer.toBinaryString(MASK_BIND));
+        System.out.println(Integer.toBinaryString(MASK_ALL_OUTBOUND & (~MASK_BIND)));
+    }
     /**
      * Return the {@code executionMask}.
      */

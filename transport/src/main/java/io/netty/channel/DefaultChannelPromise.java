@@ -16,6 +16,7 @@
 package io.netty.channel;
 
 import io.netty.channel.ChannelFlushPromiseNotifier.FlushCheckpoint;
+import io.netty.util.LogUtils;
 import io.netty.util.concurrent.DefaultPromise;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.Future;
@@ -116,6 +117,7 @@ public class DefaultChannelPromise extends DefaultPromise<Void> implements Chann
 
     @Override
     public ChannelPromise sync() throws InterruptedException {
+        LogUtils.info("DefaultChannelPromise sync 方法开始执行");
         super.sync();
         return this;
     }
