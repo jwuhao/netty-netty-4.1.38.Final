@@ -83,6 +83,7 @@ public final class PlatformDependent {
 
     private static final Throwable UNSAFE_UNAVAILABILITY_CAUSE = unsafeUnavailabilityCause0();
     private static final boolean DIRECT_BUFFER_PREFERRED;
+    // 调用了 sun.misc.VM 的 maxDirectMemory 最大直接内存方法
     private static final long MAX_DIRECT_MEMORY = maxDirectMemory0();
 
     private static final int MPSC_CHUNK_SIZE =  1024;

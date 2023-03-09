@@ -108,14 +108,19 @@ final class PoolThreadCache {
         this.heapArena = heapArena;
         this.directArena = directArena;
         if (directArena != null) {
+            //  numTinySubpagePools = 512 >>> 4 实际上就是 512 / 16 = 32，因为Tiny的最小内存单元为16B
+            // 因此 16B,32B,48B,...496B 总的内存规格为 512 / 16 = 32 种
             tinySubPageDirectCaches = createSubPageCaches(
                     tinyCacheSize, PoolArena.numTinySubpagePools, SizeClass.Tiny);
+            // 如果pageSize = 8192B , 则Small的内存规格为 512B,1024B,2048B,4096B   4种内存规格
+            // 因此 numSmallSubpagePools的计算规则为 = log2(8192) - log2(512) = log2(2 ^ 13 ) - log2(2 ^ 9 ) = 13 - 9 = 4
             smallSubPageDirectCaches = createSubPageCaches(
                     smallCacheSize, directArena.numSmallSubpagePools, SizeClass.Small);
-
+            // pageSize = 8192 =  2 ^ 13
+            // numShiftsNormalDirect = log(2 ^ 13 ) = 13
             numShiftsNormalDirect = log2(directArena.pageSize);
-            normalDirectCaches = createNormalCaches(
-                    normalCacheSize, maxCachedBufferCapacity, directArena);
+
+            normalDirectCaches = createNormalCaches(normalCacheSize, maxCachedBufferCapacity, directArena);
 
             directArena.numThreadCaches.getAndIncrement();
         } else {
@@ -168,13 +173,17 @@ final class PoolThreadCache {
             return null;
         }
     }
-
     private static <T> MemoryRegionCache<T>[] createNormalCaches(
             int cacheSize, int maxCachedBufferCapacity, PoolArena<T> area) {
         if (cacheSize > 0 && maxCachedBufferCapacity > 0) {
+            // area.chunkSize为16M, maxCachedBufferCapacity为 PoolThreadCache中normalCache数组长度且默认值为 32 * 1024
+            // 16M = 2 ^ 24
+            // 32 * 1024  = 2 ^ 5 *  2 ^ 10 = 2 ^ 15
+            // 因此二者最小值为 2 ^ 15
             int max = Math.min(area.chunkSize, maxCachedBufferCapacity);
+            // log2(2 ^ 15  /  2 ^ 13 ) = log2( 2 ^ 2 ) = 2
+            // arraySize = 2 + 1 = 3
             int arraySize = Math.max(1, log2(max / area.pageSize) + 1);
-
             @SuppressWarnings("unchecked")
             MemoryRegionCache<T>[] cache = new MemoryRegionCache[arraySize];
             for (int i = 0; i < cache.length; i++) {
@@ -222,6 +231,7 @@ final class PoolThreadCache {
             // no cache found so just return false here
             return false;
         }
+        // 默认每执行8192次allocate()， 就会调用一次trim()进行内存整理
         boolean allocated = cache.allocate(buf, reqCapacity);
         if (++ allocations >= freeSweepAllocationThreshold) {
             allocations = 0;
@@ -263,6 +273,7 @@ final class PoolThreadCache {
         try {
             super.finalize();
         } finally {
+            // 此外Netty在线程退出的时候还会回收该线程的所有内存，PoolThreadCache重载了finalize()方法，在销毁前执行缓存回收的逻辑，对应源码如下：
             free(true);
         }
     }
@@ -273,6 +284,7 @@ final class PoolThreadCache {
     void free(boolean finalizer) {
         // As free() may be called either by the finalizer or by FastThreadLocal.onRemoval(...) we need to ensure
         // we only call this one time.
+        // 在线程销毁时，PoolThreadCache会依次释放所有的MemoryRegion中的内存数据，其中free方法的核心逻辑与之前内存整理的trim中的释放内存的逻辑是一致的。
         if (freed.compareAndSet(false, true)) {
             int numFreed = free(tinySubPageDirectCaches, finalizer) +
                     free(smallSubPageDirectCaches, finalizer) +
@@ -358,6 +370,9 @@ final class PoolThreadCache {
 
     private MemoryRegionCache<?> cacheForNormal(PoolArena<?> area, int normCapacity) {
         if (area.isDirect()) {
+            // 之前分析过Normal的内存规格为8K,16K,32K
+            // numShiftsNormalDirect 为 8192 ,对应的就是2 ^ 13 次 ，而normCapacity的取值范围为8K,16K,32K
+            // 对应的数组索引为0,1,2，因此8K
             int idx = log2(normCapacity >> numShiftsNormalDirect);
             return cache(normalDirectCaches, idx);
         }
@@ -476,6 +491,10 @@ final class PoolThreadCache {
          * Free up cached {@link PoolChunk}s if not allocated frequently enough.
          */
         public final void trim() {
+            // 通过size - allocations 衡量内存分配执行的频繁程度，
+            // 其中size为该MemoryRegionCache对应的内存规格大小，size为固定值，例如 Tiny类型默认为512
+            // allocations 表示MemoryRegionCache距离上一次内存整理已经发生了多少次allocate调用，当调用的次数小于size时，表示MemoryRegionCache中缓存的内存
+            // 并不常用，从队列中取出内存块依次释放。
             int free = size - allocations;
             allocations = 0;
 

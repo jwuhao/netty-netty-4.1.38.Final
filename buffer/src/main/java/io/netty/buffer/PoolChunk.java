@@ -122,16 +122,20 @@ final class PoolChunk<T> implements PoolChunkMetric {
     private static final int INTEGER_SIZE_MINUS_ONE = Integer.SIZE - 1;
 
     final PoolArena<T> arena;
-    final T memory;
+    final T memory;                // 存储的数据
     final boolean unpooled;
     final int offset;
     // 在PoolChunk中，用一个数组memoryMap维护了所有节点(节点数 为1~2048×2-1)及其对应的高度值。memoryMap是在PoolChunk初始 化时构建的，
     // 其下标为图6-4中节点的位置，其值为节点的高度，如 memoryMap[1]=0 、 memoryMap[2]=1 、 memoryMap[2048]=11 、 memoryMap[4091]=11
+    // 满二叉树的节点是否被分配，数组的大小为4096
+    // 用户记录二叉树节点的分配信息， memoryMap 初始值与depthMap是一样的， 随着节点被分配，不仅节点值会改变， 而且会递归遍历更新其父节点的值
+    // 父亲节点的值取两个子节点中最小的值
     private final byte[] memoryMap;
     // 除memoryMap之外，还有一个同样的数组——depthMap。两 者的区别是:depthMap一直不会改变，通过depthMap可以获取节点的 内存大小，还可以获取节点的
     // 初始高度值;而memoryMap的节点和父节 点对应的高度值会随着节点内存的分配发生变化。当节点被全部分配 完时，它的高度值会变成12，表示
     // 目前已被占用，不可再被分配，并 且会循环递归地更新其上所有父节点的高度值，高度值都会加1，如图 6-5所示。
-    private final byte[] depthMap;
+    private final byte[] depthMap;          // 满二叉树中节点的高度，数组大小为4096
+    // PoolChunk中管理的2048个8K的内存块, 对应上图中的PoolChun的内部的Page0,Page1, Page2  ... Page2047 ，Netty 中并没有Page 的定义，直接使用PoolSubpage表示
     private final PoolSubpage<T>[] subpages;
     /** Used to determine if the requested capacity is equal to or greater than pageSize. */
     private final int subpageOverflowMask;
@@ -308,7 +312,7 @@ final class PoolChunk<T> implements PoolChunkMetric {
                 setValue(parentId, (byte) (logChild - 1));
             } else {
                 byte val = val1 < val2 ? val1 : val2;
-                setValue(parentId, val);        // 设置父节点的调试值为两个子节点的最小值
+                setValue(parentId, val);        // 设置父节点的高度值为两个子节点的最小值
             }
 
             id = parentId;
@@ -321,27 +325,28 @@ final class PoolChunk<T> implements PoolChunkMetric {
      *
      * @param d depth
      * @return index in memoryMap
-     * Netty源码是如何查找对应的可用节点并更新其父节点的高度值的 呢?
-     * Netty采用了前序遍历算法，从根节点开始，第二层为左右节点， 先看左边节点内存是否够分配，若不够，则选择其兄弟节点(右节 点);
+     * Netty源码是如何查找对应的可用节点并更新其父节点的高度值的呢?
+     * Netty采用了前序遍历算法，从根节点开始，第二层为左右节点， 先看左边节点内存是否够分配，若不够，则选择其兄弟节点(右节点);
      * 若当前左节点够分配，则需要继续向下一层层地查找，直到找 到层级最接近d(分配的内存在二叉树中对应的层级)的节点。具体查 找算法如下:
-     * d 是申请的内存在PoolChunk 二叉树中的调试值，若内存为8KB,则d为11
+     * d 是申请的内存在PoolChunk二叉树中的高度值，若内存为8KB,则 d 为11
      */
     private int allocateNode(int d) {
         int id = 1;
-        // d 是申请的内存在PoolChunk 二叉树中的调试值，若内存为8KB,则d为11
-        int initial = - (1 << d); // has last d bits = 0 and rest all = 1         掩码，与id进行与操作后，若> 0 ，则说明id 对应的调试大于或等于d
+        // d 是申请的内存在PoolChunk 二叉树中的高度值，若内存为8KB,则d为11
+        int initial = -(1 << d); // has last d bits = 0 and rest all = 1         掩码，与id进行与操作后，若> 0 ，则说明id 对应的高度大于或等于d
         byte val = value(id);                            // 为memoryMap[id]
         if (val > d) { // unusable                       // 若当前分配的空间无法满足要求 ， 则直接返回-1，分配失败
             return -1;
         }
-        // 有空间可以分配了，就需要一步一步的找到更接近调试值的d的节点，若找到的调试值等于d, 但此时其下标与initial进行与操作后的0 ,则说明
+
+        // 有空间可以分配了，就需要一步一步的找到更接近高度值的d的节点，若找到的高度值等于d, 但此时其下标与initial进行与操作后的0 ,则说明
         // 其子节点有一个未被分配，且其初始化层级 < d ,只是由于其有一个节点被分配了，所以层级val 与 d 相等
         while (val < d || (id & initial) == 0) { // id & initial == 1 << d for all ids at depth d, for < d it is 0
-            id <<= 1;                           // 每次都需要把id 向 下移动一层， 即左移一位
-            val = value(id);                    // 获取id 对应的层级高度值值memoryMap[id]
-            if (val > d) {                      // 若id对应的层级调试值大于d, 则此时去其兄弟节点找，肯定能找到
-                id ^= 1;                        // 获取其兄弟节点，兄弟节点的位置通过id值异或1得到
-                val = value(id);                // 获取其兄弟节点的高度值
+            id <<= 1;             // 每次都需要把id 向下移动一层， 即左移一位
+            val = value(id);      // 获取id对应的层级高度值值memoryMap[id]
+            if (val > d) {        // 若id对应的层级高度值大于d，表示这一块内存已经全部被使用 , 则此时去其兄弟节点找，肯定能找到
+                id ^= 1;          // 获取其兄弟节点，兄弟节点的位置通过id值异或1得到
+                val = value(id);  // 获取其兄弟节点的高度值
             }
         }
 
@@ -349,7 +354,7 @@ final class PoolChunk<T> implements PoolChunkMetric {
         assert value == d && (id & initial) == 1 << d : String.format("val = %d, id & initial = %d, d = %d",
                 value, id & initial, d);
         setValue(id, unusable);                 // mark as unusable 标识为不可用
-        updateParentsAlloc(id);                 // 返回id(1~2048*2-1) 通过id 可以获取其层级调试值，也可以算出其占用的内存空间的大小
+        updateParentsAlloc(id);                 // 返回id(1~2048*2-1) 通过id 可以获取其层级高度值，也可以算出其占用的内存空间的大小
         return id;
     }
 
@@ -418,31 +423,44 @@ final class PoolChunk<T> implements PoolChunkMetric {
         // Obtain the head of the PoolSubPage pool that is owned by the PoolArena and synchronize on it.
         // This is need as we may add it back and so alter the linked-list structure.
         // 通过优化后的内存容量找到Areana的两个subpages缓存池其中 一个对应的空间head指针
+        // 根据内存大小找到PoolArena中subpage数组对应的头结点
         PoolSubpage<T> head = arena.findSubpagePoolHead(normCapacity);
-        int d = maxOrder; // subpages are only be allocated from pages i.e., leaves 小于8KB 内存只在11层分配
+        int d = maxOrder; // subpages are only be allocated from pages i.e., leaves 小于8KB 内存只在11层分配，因为分配内存小于8K ，所以从满二叉树最底层开始查找
         // 由于分配前需要把PoolSubpage加入缓存池中，以便一回直接从Arean的缓存池中获取，因此选择加锁head指针
         synchronized (head) {
-            int id = allocateNode(d);                   // 获取一个可用的节点
+            int id = allocateNode(d); // 在满二叉树中获取一个可用的节点
             if (id < 0) {
                 return id;
             }
 
-            final PoolSubpage<T>[] subpages = this.subpages;
+            final PoolSubpage<T>[] subpages = this.subpages;        // 记录哪些Page 转化为Subpage
             final int pageSize = this.pageSize;
 
             freeBytes -= pageSize;              // 可用空间减去一个page，表示此page被占用
-
-            int subpageIdx = subpageIdx(id);            // 根据page的偏移值减2048获取PoolSubpage的索引
+            // pageId 到subpageId的转化，例如，pageId=2048 对应的subpageId = 0
+            int subpageIdx = subpageIdx(id); // 根据page的偏移值减2048获取PoolSubpage的索引
             PoolSubpage<T> subpage = subpages[subpageIdx];              // 获取page对应的PoolSubpage
-            if (subpage == null) {  // 若为空，则初始化一个，初始化会运行PoolSubpage的addToPool()方法，把subpage追加到head的后面
+            if (subpage == null) {
+                // 若为空，则初始化一个，初始化会运行PoolSubpage的addToPool()方法，把subpage追加到head的后面
+                // 创建PoolSubpage，并切分为相同大小的子内存块，然后加入PoolArena对应的链表中
                 subpage = new PoolSubpage<T>(head, this, id, runOffset(id), pageSize, normCapacity);
                 subpages[subpageIdx] = subpage;
             } else {
                 subpage.init(head, normCapacity);           // 初始化同样会调用addToPool()方法，此处思考，什么情况下才会发生这类情况
             }
-            return subpage.allocate();                      // PoolSubpage 的内存分配
+            return subpage.allocate(); // PoolSubpage 的内存分配 ，执行内存分配并返回内存地址
         }
     }
+    // 1.因为20B小于512B , 属于Tiny场景，按照内存规格分类，20B需要向上取整到32B
+    // 2. 根据内存规格的大小找到PoolArena中tinySubpagePools数组对应的头节点，32B 对应的tinySubpagePools[1], 在满二叉树中寻找可用于内存分配，因为我们分配的内存
+    // 小于8K ,  所以直接从二叉树的最底层开始查找，假如2049节点是可用的，那么返回id=2049。
+    // 3. 找到可用节点后，因为pageIdx从叶子节点2048开始记录索引的，而subpageIdx需要从0开始的，所以需要将pageIdx转化为subpageIdx， 例如2048 对应的subpageIdx = 0
+    // 2049 对应的subpageIdx=1,以此类推 。
+    // 4. 如果PoolChunk中的subpages数组的subpageIdx下标对应的PoolSubpage不存在，那么将创建一个新的PoolSubpage，并将PoolSubpage切分为相同大小的子内存块 。
+    // 示例对应的子内存块大小为32B ,  最后将新创建的PoolSubpage节点与tinySubpagePools[1] 对应的head节点连接成双向链表。
+    // 5 .最后PoolSubpage执行内存分配并返回内存地址 。
+
+
 
     /**
      * Free a subpage or a run of pages

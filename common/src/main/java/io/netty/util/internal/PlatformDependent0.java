@@ -391,6 +391,7 @@ final class PlatformDependent0 {
     }
 
     private static Throwable explicitNoUnsafeCause0() {
+        // 是否关闭direct buffer
         final boolean noUnsafe = SystemPropertyUtil.getBoolean("io.netty.noUnsafe", false);
         logger.debug("-Dio.netty.noUnsafe: {}", noUnsafe);
 

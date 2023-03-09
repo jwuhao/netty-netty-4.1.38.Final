@@ -90,7 +90,7 @@ import static io.netty.util.internal.StringUtil.simpleClassName;
  */
 public class ResourceLeakDetector<T> {
 
-    private static final String PROP_LEVEL_OLD = "io.netty.leakDetectionLevel";
+    private static final String PROP_LEVEL_OLD = "io.netty.leakDetectionLevel"; //内存泄露检测级别 ,SIMPLE
     private static final String PROP_LEVEL = "io.netty.leakDetection.level";
     private static final Level DEFAULT_LEVEL = Level.SIMPLE;
 

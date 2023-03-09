@@ -72,6 +72,7 @@ public final class ByteBufUtil {
     static final ByteBufAllocator DEFAULT_ALLOCATOR;
 
     static {
+        // allocator类型，如果不使用内存池，则设置为unpooled，这里会影响内存如果一条传输对像大的话。
         String allocType = SystemPropertyUtil.get(
                 "io.netty.allocator.type", PlatformDependent.isAndroid() ? "unpooled" : "pooled");
         allocType = allocType.toLowerCase(Locale.US).trim();
