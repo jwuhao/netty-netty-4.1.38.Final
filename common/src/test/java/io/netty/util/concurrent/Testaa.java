@@ -1,6 +1,5 @@
 package io.netty.util.concurrent;
 
-import sun.net.idn.Punycode;
 
 public class Testaa {
 

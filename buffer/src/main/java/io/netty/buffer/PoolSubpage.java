@@ -143,10 +143,10 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
             addToPool(head);
             return true;
         }
-        // 若还没有被释放的内存，则直接返回
-        if (numAvail != maxNumElems) {
+        // 若还有没被释放的内存，则直接返回
+        if (numAvail != maxNumElems) {  // maxNumElems 表示subpage有多少个element, 这个段等于8K/elmSize
             return true;
-        } else {
+        } else {                           // numAvail == maxNumElems 的情况
             // Subpage not in use (numAvail == maxNumElems)  若内存全部被释放了，且池中没有其他的PoolSubpage，则不从池中移除，直接返回
             if (prev == next) {
                 // Do not remove if this subpage is the only one left in the pool.
@@ -154,7 +154,7 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
             }
 
             // Remove this subpage from the pool if there are other subpages left in the pool.
-            doNotDestroy = false;               // 若逊尼中还有其他的节点，且当前节点内存已经全部被释放，则从池中移除，并返回false , 对其上的page也会进行相应的回收
+            doNotDestroy = false;               // 若池中还有其他的节点，且当前节点内存已经全部被释放，则从池中移除，并返回false , 对其上的page也会进行相应的回收
             removeFromPool();
             return false;
         }

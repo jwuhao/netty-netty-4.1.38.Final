@@ -474,10 +474,11 @@ final class PoolChunk<T> implements PoolChunkMetric {
      *
      *
      */
-    // 内存的释放相对其分配来说要简单很多，下面主要剖析PoolChunk 和PoolSubpage的释放。当内存释放时，同样先根据handle指针找到内 存在PoolChunk和PoolSubpage中的相对偏移量，具体释放步骤如下。
+    // 内存的释放相对其分配来说要简单很多，下面主要剖析PoolChunk 和PoolSubpage的释放。当内存释放时，
+    // 同样先根据handle指针找到内 存在PoolChunk和PoolSubpage中的相对偏移量，具体释放步骤如下。
     // 1. 若在PoolSubpage上的偏移量大于0，则交给PoolSubpage去 释放，这与PoolSubpage内存申请有些相似，根据PoolSubpage内存分 配段的偏移位
     // bitmapIdx找到long[]数组bitmap的索引q，将bitmap[q] 的具体内存占用位r置为0(表示释放)。同时调整Arena中的 PoolSubpage缓存池，
-    // 若PoolSubpage已全部释放了，且池中除了它还 有其他节点，则从池中移除;若由于之前PoolSubpage的内存段全部分 配完并从池中移除过，
+    // 若PoolSubpage已全部释放了，且池中除了它还 有其他节点，则从池中移除;若由于之前PoolSubpage的内存段全部分 配完并从池中移除，
     // 则在其当前可用内存段numAvail等于-1且 PoolSubpage释放后，对可用内存段进行“++”运算，从而使 numAvail++等于0，此时会把释放
     // 的PoolSubpage追加到Arena的 PoolSubpage缓存池中，方便下次直接从缓冲池中获取。
     // 2. 若在PoolSubpage上的偏移量等于0，或者PoolSubpage释放 完后返回false(PoolSubpage已全部释放完，同时从Arena的 PoolSubpage缓存池中移除了)，
@@ -502,9 +503,9 @@ final class PoolChunk<T> implements PoolChunkMetric {
                 }
             }
         }
-        freeBytes += runLength(memoryMapIdx);                       // 释放的字节数调整
-        setValue(memoryMapIdx, depth(memoryMapIdx));                  // 设置节点值为节点初始化值，depth()方法使用的是byte[] depthMap，此字节初始化后就不再改变了
-        updateParentsFree(memoryMapIdx);                        // 更新父亲节点的高度值
+        freeBytes += runLength(memoryMapIdx);         // 释放的字节数调整
+        setValue(memoryMapIdx, depth(memoryMapIdx));  // 设置节点值为节点初始化值，depth()方法使用的是byte[] depthMap，depthMap此字节初始化后就不再改变了
+        updateParentsFree(memoryMapIdx);              // 更新父亲节点的高度值
 
         if (nioBuffer != null && cachedNioBuffers != null &&                // 把nioBuffer放入到缓存队列中，以便下次再直接使用
                 cachedNioBuffers.size() < PooledByteBufAllocator.DEFAULT_MAX_CACHED_BYTEBUFFERS_PER_CHUNK) {

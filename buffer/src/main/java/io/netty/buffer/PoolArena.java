@@ -316,7 +316,7 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
             deallocationsHuge.increment();
         } else {
             SizeClass sizeClass = sizeClass(normCapacity);
-            // 先尝试放入线程本地缓存，在线程本地缓存默认的情况下，缓存tiny类型的PoolSubpage数最多为64个，
+            // 先尝试放入线程本地缓存，在线程本地缓存默认的情况下，缓存tiny类型的PoolSubpage数最多为64个
             if (cache != null && cache.add(this, chunk, nioBuffer, handle, normCapacity, sizeClass)) {
                 // cached so not free it.
                 return;
@@ -355,6 +355,8 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
             }
             destroyChunk = !chunk.parent.free(chunk, handle, nioBuffer);
         }
+
+        // 如果不能将当前PoolChunk移到到前一个chunkList中，则需要将当前PoolChunk销毁掉
         if (destroyChunk) {
             // destroyChunk not need to be called while holding the synchronized lock.
             destroyChunk(chunk);
