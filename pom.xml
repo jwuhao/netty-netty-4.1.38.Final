@@ -388,6 +388,7 @@
         <optional>true</optional>
       </dependency>
 
+
       <!-- JBoss Marshalling - completely optional -->
       <dependency>
         <groupId>org.jboss.marshalling</groupId>
