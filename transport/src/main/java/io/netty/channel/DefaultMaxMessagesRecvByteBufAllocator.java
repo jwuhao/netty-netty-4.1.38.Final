@@ -86,11 +86,11 @@ public abstract class DefaultMaxMessagesRecvByteBufAllocator implements MaxMessa
      */
     public abstract class MaxMessageHandle implements ExtendedHandle {
         private ChannelConfig config;
-        private int maxMessagePerRead;
-        private int totalMessages;
-        private int totalBytesRead;
-        private int attemptedBytesRead;
-        private int lastBytesRead;
+        private int maxMessagePerRead;  // 每个读循环可循环读取消息的最大次数。
+        private int totalMessages;      // 目前读循环已经读取的消息个数。即，在NIO传输模式下也就是读循环已经执行的循环次数
+        private int totalBytesRead;     // 目前已经读取到的消息字节总数
+        private int attemptedBytesRead; // 本次将要进行的读操作，期望读取的字节数。也就是有这么多个字节等待被读取。
+        private int lastBytesRead;      // 最后一次读操作读取到的字节数。
         private final boolean respectMaybeMoreData = DefaultMaxMessagesRecvByteBufAllocator.this.respectMaybeMoreData;
         private final UncheckedBooleanSupplier defaultMaybeMoreSupplier = new UncheckedBooleanSupplier() {
             @Override
@@ -139,9 +139,15 @@ public abstract class DefaultMaxMessagesRecvByteBufAllocator implements MaxMessa
 
         @Override
         public boolean continueReading(UncheckedBooleanSupplier maybeMoreDataSupplier) {
+            // ChannelConfig的设置为可自动读取。即，autoRead属性为1。
             return config.isAutoRead() &&
+                    //  maybeMoreDataSupplier.get()返回为true，。也就是当‘最近一次读操作所期望读取的字节数’
+                    //  与‘最近一次读操作真实读取的字节数’一样，则表示当前可能还有数据等待被读取。则就会返回true。
                    (!respectMaybeMoreData || maybeMoreDataSupplier.get()) &&
+                   // totalMessages < maxMessagePerRead ： 已经读取的消息次数 < 一个读循环最大能读取消息的次数
                    totalMessages < maxMessagePerRead &&
+                    // totalBytesRead > 0 ：因为totalBytesRead是int类型，所以totalBytesRead的最大值是’Integer.MAX_VALUE’(即，2147483647)。
+                    // 所以，也限制了一个读循环最大能读取的字节数为2147483647。
                    totalBytesRead > 0;
         }
 
@@ -158,7 +164,7 @@ public abstract class DefaultMaxMessagesRecvByteBufAllocator implements MaxMessa
         public void attemptedBytesRead(int bytes) {
             attemptedBytesRead = bytes;
         }
-
+        //返回已经读取的字节个数，若‘totalBytesRead < 0’则说明已经读取的字节数已经操作了’Integer.MAX_VALUE’，则返回Integer.MAX_VALUE；否则返回真实的已经读取的字节数。
         protected final int totalBytesRead() {
             return totalBytesRead < 0 ? Integer.MAX_VALUE : totalBytesRead;
         }

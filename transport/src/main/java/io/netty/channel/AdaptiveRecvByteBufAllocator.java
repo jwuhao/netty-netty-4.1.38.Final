@@ -47,16 +47,26 @@ import static java.lang.Math.min;
  */
 public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufAllocator {
 
-    static final int DEFAULT_MINIMUM = 64;
-    static final int DEFAULT_INITIAL = 1024;
-    static final int DEFAULT_MAXIMUM = 65536;
+    static final int DEFAULT_MINIMUM = 64;                      // 接收缓冲区的最小长度下限
+    static final int DEFAULT_INITIAL = 1024;                    // 接收缓冲区的最大长度上限
+    static final int DEFAULT_MAXIMUM = 65536;                   // 接收缓冲区最大长度上限
 
-    private static final int INDEX_INCREMENT = 4;
-    private static final int INDEX_DECREMENT = 1;
+
+    // 在调整缓冲区大小时，若是增加缓冲区容量，那么增加的索引值。
+    // 比如，当前缓冲区的大小为SIZE_TABLE[20],若预测下次需要创建的缓冲区需要增加容量大小，
+    // 则新缓冲区的大小为SIZE_TABLE[20 + INDEX_INCREMENT]，即SIZE_TABLE[24]
+    private static final int INDEX_INCREMENT = 4;               // 扩容增长量
+    // 在调整缓冲区大小时，若是减少缓冲区容量，那么减少的索引值。
+    // 比如，当前缓冲区的大小为SIZE_TABLE[20],若预测下次需要创建的缓冲区需要减小容量大小，
+    // 则新缓冲区的大小为SIZE_TABLE[20 - INDEX_DECREMENT]，即SIZE_TABLE[19]
+    private static final int INDEX_DECREMENT = 1;               // 扩容减少量
 
     private static final int[] SIZE_TABLE;
 
+    // 分配了一个int类型的数组，并进行了数组的初始化处理， 从实现来看，该数组的长度是53，前32位是16的倍数，value值是从16开始的，到512，从33位开始，值是前一位的
+    // 两倍，即从1024，2048 ， 到最大值 1073741824 。
     static {
+
         List<Integer> sizeTable = new ArrayList<Integer>();
         for (int i = 16; i < 512; i += 16) {
             sizeTable.add(i);
@@ -70,6 +80,7 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
         for (int i = 0; i < SIZE_TABLE.length; i++) {
             SIZE_TABLE[i] = sizeTable.get(i);
         }
+        System.out.println("================");
     }
 
     /**
@@ -78,6 +89,7 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
     @Deprecated
     public static final AdaptiveRecvByteBufAllocator DEFAULT = new AdaptiveRecvByteBufAllocator();
 
+    // 入参是一个大小，然后利用二分查找法对该数组进行size定位 ，目标是为了找出该size值在数组中的下标位置 ， 主要是为了初始化maxIndex, maxIndex这两个参数
     private static int getSizeTableIndex(final int size) {
         for (int low = 0, high = SIZE_TABLE.length - 1; ; ) {
             if (high < low) {
@@ -103,16 +115,16 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
     }
 
     private final class HandleImpl extends MaxMessageHandle {
-        private final int minIndex;
-        private final int maxIndex;
-        private int index;
-        private int nextReceiveBufferSize;
-        private boolean decreaseNow;
+        private final int minIndex; // 缓冲区最小容量对应于SIZE_TABLE中的下标位置，同外部类AdaptiveRecvByteBufAllocator是一个值
+        private final int maxIndex; // 缓冲区最大容量对应于SIZE_TABLE中的下标位置，同外部类AdaptiveRecvByteBufAllocator是一个值
+        private int index;          // 缓冲区默认容量对应于SIZE_TABLE中的下标位置，外部类AdaptiveRecvByteBufAllocator记录的是容量大小值，而HandleImpl中记录是其值对应于SIZE_TABLE中的下标位置
+        private int nextReceiveBufferSize;      // 下一次创建缓冲区时的其容量的大小。
+        private boolean decreaseNow;            // 在record()方法中使用，用于标识是否需要减少下一次创建的缓冲区的大小。
 
         HandleImpl(int minIndex, int maxIndex, int initial) {
             this.minIndex = minIndex;
             this.maxIndex = maxIndex;
-
+            // 用initial获取一开始初始化缓冲的下标，在根据SIZE_TABLE查找分配bufferSize
             index = getSizeTableIndex(initial);
             nextReceiveBufferSize = SIZE_TABLE[index];
         }
@@ -134,6 +146,10 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
             return nextReceiveBufferSize;
         }
 
+        // 该方法的参数是一次读取操作中实际读取到的数据大小，将其与nextReceiveBufferSize 进行比较，如果实际字节数actualReadBytes大于等于该值，则立即更新nextReceiveBufferSize ，
+        // 其更新后的值与INDEX_INCREMENT有关。INDEX_INCREMENT为默认常量，值为4。也就是说在扩容时会一次性增大多一些，以保证下次有足够空间可以接收数据。而相对扩容的策略，
+        // 缩容策略则实际保守些，常量为INDEX_INCREMENT，值为1，同样也是进行对比， 但不同的是，若实际字节小于所用nextReceiveBufferSize，并不会立马进行大小调整，
+        // 而是先把 decreaseNow 设置为true，如果下次仍然小于，则才会减少nextReceiveBufferSize的大小
         private void record(int actualReadBytes) {
             if (actualReadBytes <= SIZE_TABLE[max(0, index - INDEX_DECREMENT - 1)]) {
                 if (decreaseNow) {                      // 若减少标识decreaseNow连续两次为true, 则说明下次读取字节数需要减少SIZE_TABLE下标减1
