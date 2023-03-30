@@ -303,8 +303,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     final void ensureWritable0(int minWritableBytes) {
-        // 获取ByteBuf对象的引用计数
-        // 如果返回值为零，则说明该对象被销毁，会抛出异常
+        // 获取ByteBuf对象的引用计数, 如果返回值为零，则说明该对象被销毁，会抛出异常
         ensureAccessible();
         // 若可写字节数大于 minWritableBytes,则无须扩容
         if (minWritableBytes <= writableBytes()) {
@@ -400,7 +399,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
-    public byte getByte(int index) {
+    public byte getByte(int index) {     // 获取此缓冲区中位于指定绝对索引处的字节
         checkIndex(index);
         return _getByte(index);
     }
@@ -408,17 +407,17 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract byte _getByte(int index);
 
     @Override
-    public boolean getBoolean(int index) {
+    public boolean getBoolean(int index) { // 获取该缓冲区中指定绝对索引处的boolean值
         return getByte(index) != 0;
     }
 
     @Override
-    public short getUnsignedByte(int index) {
+    public short getUnsignedByte(int index) {       // 获取该缓冲区中指定的绝对索引处的无符号字节，注： 返回值为short类型。
         return (short) (getByte(index) & 0xFF);
     }
 
     @Override
-    public short getShort(int index) {
+    public short getShort(int index) {          // 获取此缓冲区中指定绝对索引处的16倍短整数
         checkIndex(index, 2);
         return _getShort(index);
     }
@@ -426,7 +425,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract short _getShort(int index);
 
     @Override
-    public short getShortLE(int index) {
+    public short getShortLE(int index) {       // 获取该缓冲区中指定的绝对索引处的16位无符号短整数
         checkIndex(index, 2);
         return _getShortLE(index);
     }
@@ -434,17 +433,17 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract short _getShortLE(int index);
 
     @Override
-    public int getUnsignedShort(int index) {
+    public int getUnsignedShort(int index) {       // 获取此缓冲区中指定绝对索引处的16位无符号短整数，注：返回的是int类型
         return getShort(index) & 0xFFFF;
     }
 
     @Override
-    public int getUnsignedShortLE(int index) {
+    public int getUnsignedShortLE(int index) {  // 获取该缓冲区中以小字节顺序指定的绝对索引处无符号16位短整数，注，返回值为int类型
         return getShortLE(index) & 0xFFFF;
     }
 
     @Override
-    public int getUnsignedMedium(int index) {
+    public int getUnsignedMedium(int index) {   // 获取该缓冲区中以小端字节顺序指定的绝对索引处的无符号24位中等整数 。
         checkIndex(index, 3);
         return _getUnsignedMedium(index);
     }
@@ -452,7 +451,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract int _getUnsignedMedium(int index);
 
     @Override
-    public int getUnsignedMediumLE(int index) {
+    public int getUnsignedMediumLE(int index) {     // 获取该缓冲区中以小端字节顺序指定的绝对索引处的无符号24位中等整数
         checkIndex(index, 3);
         return _getUnsignedMediumLE(index);
     }
@@ -478,7 +477,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
-    public int getInt(int index) {
+    public int getInt(int index) {              // 获取此缓冲区中指定绝对索引处的32位整数
         checkIndex(index, 4);
         return _getInt(index);
     }
@@ -486,7 +485,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract int _getInt(int index);
 
     @Override
-    public int getIntLE(int index) {
+    public int getIntLE(int index) {            // 获取此缓冲区中具有小端字节顺序的指定绝对索引处的32位整数
         checkIndex(index, 4);
         return _getIntLE(index);
     }
@@ -494,17 +493,17 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract int _getIntLE(int index);
 
     @Override
-    public long getUnsignedInt(int index) {
+    public long getUnsignedInt(int index) {     // 获取此缓冲区中指定绝对索引处的无符号32位整数，注：返回值为long类型值
         return getInt(index) & 0xFFFFFFFFL;
     }
 
     @Override
-    public long getUnsignedIntLE(int index) {
+    public long getUnsignedIntLE(int index) {       // 获取此缓冲区中以小端字节顺序指定绝对索引处的无符号32位整数
         return getIntLE(index) & 0xFFFFFFFFL;
     }
 
     @Override
-    public long getLong(int index) {
+    public long getLong(int index) {    // 获取此缓冲区中指定绝对索引处的64位的长整数
         checkIndex(index, 8);
         return _getLong(index);
     }
@@ -512,7 +511,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract long _getLong(int index);
 
     @Override
-    public long getLongLE(int index) {
+    public long getLongLE(int index) {  // 以小端字节顺序在此缓冲区中指定绝对索引处获取一个64位长整数
         checkIndex(index, 8);
         return _getLongLE(index);
     }
@@ -520,40 +519,53 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract long _getLongLE(int index);
 
     @Override
-    public char getChar(int index) {
+    public char getChar(int index) {            // 获取此缓冲区中指定的绝对索引入的2个字节UTF-16字符
         return (char) getShort(index);
     }
 
     @Override
-    public float getFloat(int index) {
+    public float getFloat(int index) {                  // 获取此缓冲区中指定的绝对索引处的32位浮点数
         return Float.intBitsToFloat(getInt(index));
     }
 
     @Override
-    public double getDouble(int index) {
+    public double getDouble(int index) {                // 获取此缓冲区中指定绝对索引处的64位浮点数
         return Double.longBitsToDouble(getLong(index));
     }
 
     @Override
+    //  getBytes(int index, byte[] dst) 方法来实现。 传递的length大小就是目标缓冲区dst的剩下可写区域
+    // Writeable bytes 的大小
+
     public ByteBuf getBytes(int index, byte[] dst) {
         getBytes(index, dst, 0, dst.length);
         return this;
     }
 
     @Override
+    // 方法也调用了ByteBuf getBytes(int index, ByteBuf dst, int dstIndex, int length) 方法，传递了dstIndex 就是目标缓存区
     public ByteBuf getBytes(int index, ByteBuf dst) {
         getBytes(index, dst, dst.writableBytes());
         return this;
     }
 
     @Override
+    // getBytes() 方法因此我们可以得出
+    // 首先这三个方法都不会改变该缓冲区的读索引readerIndex或者写索引writerIndex的值 。
+    // 前两个方法会改变目标缓存区dst的写索引writerIndex值，而第三个方法则不会
     public ByteBuf getBytes(int index, ByteBuf dst, int length) {
         getBytes(index, dst, dst.writerIndex(), length);
         dst.writerIndex(dst.writerIndex() + length);
         return this;
     }
+    // 这是因为前两个方法是将该缓冲区的数据从目标缓冲区dst当前写引用
+    // writerIndex位置处开始写入， 因此传输完成后，可以更改目标缓冲区dst的写引用writerIndex
+    // 而第三个方法则是从目标缓冲区dst任意位置处开始写，就不好直接改变写引用writerIndex
 
-    @Override
+
+
+
+    @Override   // 获取在给定索引处具有的给定长度CharSequence
     public CharSequence getCharSequence(int index, int length, Charset charset) {
         if (CharsetUtil.US_ASCII.equals(charset) || CharsetUtil.ISO_8859_1.equals(charset)) {
             // ByteBufUtil.getBytes(...) will return a new copy which the AsciiString uses directly
@@ -578,14 +590,18 @@ public abstract class AbstractByteBuf extends ByteBuf {
 
     protected abstract void _setByte(int index, int value);
 
+
+    // 使用set系列方法必须指定一个索引，也就是说它可以从任意位置设置缓存区中的数据，只要设置的数据不超过缓存区的范围 。
+    // 它不会改变读索引readerIndex和写索引writerIndex的值
+
     @Override
-    public ByteBuf setBoolean(int index, boolean value) {
+    public ByteBuf setBoolean(int index, boolean value) {   // 在此缓冲区的指定绝对索引处设置指定的布尔值
         setByte(index, value? 1 : 0);
         return this;
     }
 
     @Override
-    public ByteBuf setShort(int index, int value) {
+    public ByteBuf setShort(int index, int value) { // 在此缓冲区的指定绝对索引处设置指定的16位短整数，忽略指定的16位高阶位 。
         checkIndex(index, 2);
         _setShort(index, value);
         return this;
@@ -594,7 +610,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract void _setShort(int index, int value);
 
     @Override
-    public ByteBuf setShortLE(int index, int value) {
+    public ByteBuf setShortLE(int index, int value) {   // 在此缓冲区中使用小端字节顺序的指定绝对索引处设置指定的16位短整数，忽略指定的16位高阶位
         checkIndex(index, 2);
         _setShortLE(index, value);
         return this;
@@ -603,13 +619,13 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract void _setShortLE(int index, int value);
 
     @Override
-    public ByteBuf setChar(int index, int value) {
+    public ByteBuf setChar(int index, int value) {                  // 在此缓冲区中指定绝对索引处设置指定的32位浮点数
         setShort(index, value);
         return this;
     }
 
     @Override
-    public ByteBuf setMedium(int index, int value) {
+    public ByteBuf setMedium(int index, int value) {        //在此缓冲区的指定绝对索引处设置指定的24位中等整数，忽略指定的8个高阶位
         checkIndex(index, 3);
         _setMedium(index, value);
         return this;
@@ -618,7 +634,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract void _setMedium(int index, int value);
 
     @Override
-    public ByteBuf setMediumLE(int index, int value) {
+    public ByteBuf setMediumLE(int index, int value) {  // 以小端字节顺序在引缓冲区的指定绝对索引处设置指定的24位中位数，忽略指定的值8个高阶位
         checkIndex(index, 3);
         _setMediumLE(index, value);
         return this;
@@ -627,7 +643,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract void _setMediumLE(int index, int value);
 
     @Override
-    public ByteBuf setInt(int index, int value) {
+    public ByteBuf setInt(int index, int value) {           // 在此缓冲区的指定绝对索引处设置指定的32位整数
         checkIndex(index, 4);
         _setInt(index, value);
         return this;
@@ -636,7 +652,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract void _setInt(int index, int value);
 
     @Override
-    public ByteBuf setIntLE(int index, int value) {
+    public ByteBuf setIntLE(int index, int value) { // 以小端字节顺序在此缓冲区的指定绝对索引处的设置指定的32位整数
         checkIndex(index, 4);
         _setIntLE(index, value);
         return this;
@@ -651,7 +667,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf setLong(int index, long value) {
+    public ByteBuf setLong(int index, long value) {         // 在此缓冲区的指定绝对索引处设置指定的64位长整数
         checkIndex(index, 8);
         _setLong(index, value);
         return this;
@@ -660,7 +676,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract void _setLong(int index, long value);
 
     @Override
-    public ByteBuf setLongLE(int index, long value) {
+    public ByteBuf setLongLE(int index, long value) {       // 以小端字节顺序在此缓冲区的指定绝对索引处设置指定64位长整数
         checkIndex(index, 8);
         _setLongLE(index, value);
         return this;
@@ -669,11 +685,13 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract void _setLongLE(int index, long value);
 
     @Override
-    public ByteBuf setDouble(int index, double value) {
+    public ByteBuf setDouble(int index, double value) {         // 在此缓冲区中指定绝对的索引处设置指定的64位浮点数
         setLong(index, Double.doubleToRawLongBits(value));
         return this;
     }
 
+    // set 系列方法都是向本缓存区设置数据，因此与其他缓存区ByteBuf 交互，就是将其他缓存区的数据写入到本地缓存区
+    // 这三个方法都是从指定的索引处开始指定缓冲区src 的数据传输到此缓冲区，我们来看在AbstractByteBuf类中的基本实现如下
     @Override
     public ByteBuf setBytes(int index, byte[] src) {
         setBytes(index, src, 0, src.length);
@@ -681,10 +699,29 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf setBytes(int index, ByteBuf src) {
+    // 从指定的绝对索引处开始将指定的源缓冲区src的数据传输到此缓冲区，直到源缓冲区src的位置达到极限，即源缓冲区src数据读取完
+    public ByteBuf setBytes(int index, ByteBuf src) {   // 传递length的大小就是源缓存区src可读区域Readable Bytes 的大小
         setBytes(index, src, src.readableBytes());
         return this;
     }
+
+    @Override
+    // 返回从指定的通道读入的实际字节数， 如果是-1 ，则指定的通道被关闭
+    public ByteBuf setBytes(int index, ByteBuf src, int length) {   // 传递的srcIndex就是源缓存区src的当前读索引readerIndex的值
+        checkIndex(index, length);
+        if (src == null) {
+            throw new NullPointerException("src");
+        }
+        if (checkBounds) {
+            checkReadableBounds(src, length);
+        }
+        // 但最后调用它的src.readerIndex()方法，增加源缓存区src的读索引readerIndex的值
+        setBytes(index, src, src.readerIndex(), length);
+        src.readerIndex(src.readerIndex() + length);
+        return this;
+    }
+
+
 
     private static void checkReadableBounds(final ByteBuf src, final int length) {
         if (length > src.readableBytes()) {
@@ -693,22 +730,9 @@ public abstract class AbstractByteBuf extends ByteBuf {
         }
     }
 
-    @Override
-    public ByteBuf setBytes(int index, ByteBuf src, int length) {
-        checkIndex(index, length);
-        if (src == null) {
-            throw new NullPointerException("src");
-        }
-        if (checkBounds) {
-            checkReadableBounds(src, length);
-        }
-
-        setBytes(index, src, src.readerIndex(), length);
-        src.readerIndex(src.readerIndex() + length);
-        return this;
-    }
 
     @Override
+    // 从指定的绝对索引开始，用NULL(0x00)填充此缓冲区length长度数据
     public ByteBuf setZero(int index, int length) {
         if (length == 0) {
             return this;
@@ -742,6 +766,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
+    // 在给定的索引处设置sequence 对象数据，并返回设置的字节长度
     public int setCharSequence(int index, CharSequence sequence, Charset charset) {
         return setCharSequence0(index, sequence, charset, false);
     }
@@ -1023,11 +1048,13 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf skipBytes(int length) {
+    public ByteBuf skipBytes(int length) {          // 方法，将该缓冲区的当前readerIndex增加指定的长度
         checkReadableBytes(length);
         readerIndex += length;
         return this;
     }
+    // 注意read系列和skipBytes方法能改变读索引readerIndex的值，除了它们，只剩下readerIndex(int readerIndex),setIndex(int readerIndex,int writerIndex)
+    //
 
     @Override
     public ByteBuf writeBoolean(boolean value) {
@@ -1267,12 +1294,12 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf slice() {
+    public ByteBuf slice() {    // 返回该缓冲区可读字节的一切切片
         return slice(readerIndex, readableBytes());
     }
 
     @Override
-    public ByteBuf retainedSlice() {
+    public ByteBuf retainedSlice() {    // 返回该缓冲区可读写的字节保留片
         return slice().retain();
     }
 
@@ -1308,7 +1335,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
-    public int indexOf(int fromIndex, int toIndex, byte value) {
+    public int indexOf(int fromIndex, int toIndex, byte value) {      // 定位指定的字节值value在此缓冲区中第一次出现的位置 ， 如果找不到就返回-1
         return ByteBufUtil.indexOf(this, fromIndex, toIndex, value);
     }
 

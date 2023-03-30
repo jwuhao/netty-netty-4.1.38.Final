@@ -114,6 +114,11 @@ public abstract class AbstractByteBufTest {
         }
     }
 
+
+    public static void main(String[] args) {
+
+    }
+
     @Test
     public void comparableInterfaceNotViolated() {
         assumeFalse(buffer.isReadOnly());

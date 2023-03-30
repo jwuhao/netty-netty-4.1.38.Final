@@ -15,6 +15,9 @@ public class ByteBufferPut {
 
         buffer.flip();
 
+
+        buffer.duplicate();
+
         System.out.println(buffer.getInt());
         System.out.println(buffer.getLong());
         System.out.println(buffer.getDouble());
