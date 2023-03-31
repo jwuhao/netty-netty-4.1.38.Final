@@ -24,8 +24,15 @@ import java.nio.ByteBuffer;
 
 public class PooledHeapByteBuf extends PooledByteBuf<byte[]> {
 
+
+
+
+
     private static final Recycler<PooledHeapByteBuf> RECYCLER = new Recycler<PooledHeapByteBuf>() {
         @Override
+        // Recycler<T>是一个抽象类，所有的子类都要实现一个newObject方法，用于创建一个新的ByteBuf对象
+        // Recycler<T>本质上实际的是一个栈的功能，新建ByteBuf的时候，可以向Recycler<T>申请一个闲置对象，当ByteBuf使用完毕后
+        // 可以回收并归还给Recycler<T>
         protected PooledHeapByteBuf newObject(Handle<PooledHeapByteBuf> handle) {
             return new PooledHeapByteBuf(handle, 0);
         }

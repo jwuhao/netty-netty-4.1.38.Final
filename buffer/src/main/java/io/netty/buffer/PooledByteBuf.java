@@ -264,6 +264,7 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     @Override
     /**
      * 对象回收，把对象属性清空
+     * 当前面我们提到过的ByteBuf的引用计数为0的时候，会调用deallocate()方法进行释放 ，实现如下 。
      */
     protected final void deallocate() {
         if (handle >= 0) {

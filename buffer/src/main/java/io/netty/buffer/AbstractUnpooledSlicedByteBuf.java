@@ -29,25 +29,32 @@ import java.nio.charset.Charset;
 
 import static io.netty.util.internal.MathUtil.isOutOfBounds;
 
-abstract class AbstractUnpooledSlicedByteBuf extends AbstractDerivedByteBuf {
+public abstract class AbstractUnpooledSlicedByteBuf extends AbstractDerivedByteBuf {
+    // 被分片的ByteBuf
     private final ByteBuf buffer;
+    // 偏移量
     private final int adjustment;
 
+
+    // slice分片仅仅是对ByteBuf进行了一层封装，并没有发生任何内存复制的行为， 所以是非常高效的。
     AbstractUnpooledSlicedByteBuf(ByteBuf buffer, int index, int length) {
         super(length);
         checkSliceOutOfBounds(index, length, buffer);
         if (buffer instanceof AbstractUnpooledSlicedByteBuf) {
+            // 如果传入的是slice分片，则需要叠加其偏移量
             this.buffer = ((AbstractUnpooledSlicedByteBuf) buffer).buffer;
             adjustment = ((AbstractUnpooledSlicedByteBuf) buffer).adjustment + index;
         } else if (buffer instanceof DuplicatedByteBuf) {
+            // 如果传入的是dulicated分片 ， 不需要叠加(因为其偏移量为0 )
             this.buffer = buffer.unwrap();
             adjustment = index;
         } else {
             this.buffer = buffer;
             adjustment = index;
         }
-
+        // 初始化当前最大容量，对分片来说，最大容量不能超过length
         initLength(length);
+        // 初始化写指针
         writerIndex(length);
     }
 

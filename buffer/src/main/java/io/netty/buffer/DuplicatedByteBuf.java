@@ -38,10 +38,13 @@ public class DuplicatedByteBuf extends AbstractDerivedByteBuf {
 
     private final ByteBuf buffer;
 
+    // 值得注意的是，无论是slice还是duplicate，都没有用retain()的方法来改变底层的ByteBuf 的引用计数， 所以如果底层的ByteBuf调用提是release()
+    // 报被释放，那么所有的基于ByteBuf的浅复制对象都不能进行读写， 所以要确保复制实例的使用安全，需要通过调用一次retain()方法来递增底层ByteBuf()的引用
+    // 计数， 然后在浅复制实例使用结束后，再调一次release() 来递减底层的ByteBuf 的引用计数。
     public DuplicatedByteBuf(ByteBuf buffer) {
         this(buffer, buffer.readerIndex(), buffer.writerIndex());
     }
-
+    // duplicate也是如此手法。唯一不同是，duplicate是对整个ByteBuf进行浅复制
     DuplicatedByteBuf(ByteBuf buffer, int readerIndex, int writerIndex) {
         super(buffer.maxCapacity());
 
@@ -52,11 +55,12 @@ public class DuplicatedByteBuf extends AbstractDerivedByteBuf {
         } else {
             this.buffer = buffer;
         }
-
+        // 直接复用原来的ByteBuf的读写指针
         setIndex(readerIndex, writerIndex);
         markReaderIndex();
         markWriterIndex();
     }
+
 
     @Override
     public ByteBuf unwrap() {

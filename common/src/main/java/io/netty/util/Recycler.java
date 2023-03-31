@@ -157,9 +157,11 @@ public abstract class Recycler<T> {
         if (maxCapacityPerThread == 0) {
             return newObject((Handle<T>) NOOP_HANDLE);
         }
+        // 尝试从栈中获取闲置对象
         Stack<T> stack = threadLocal.get();
         DefaultHandle<T> handle = stack.pop();
         if (handle == null) {
+            // 如果没有闲置对象，调用newObject新建一个新对象
             handle = stack.newHandle();
             handle.value = newObject(handle);
         }
@@ -221,7 +223,7 @@ public abstract class Recycler<T> {
             if (lastRecycledId != recycleId || stack == null) {
                 throw new IllegalStateException("recycled already");
             }
-
+            // 最后调用了handler进行回收，所谓的回收动作，其实就是放加到栈中
             stack.push(this);
         }
     }

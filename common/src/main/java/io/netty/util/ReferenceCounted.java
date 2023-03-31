@@ -64,6 +64,9 @@ public interface ReferenceCounted {
      * {@code 0}.
      *
      * @return {@code true} if and only if the reference count became {@code 0} and this object has been deallocated
+     *     // 引用数减1，如果引用数减为0，则释放该对象。
+     *     // 如果该对象被释放则返回true，否则返回false。
+     *     // 注意：子类实现其实是减2，后文会提到。
      */
     boolean release();
 

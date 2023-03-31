@@ -87,6 +87,10 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
     // 引用计数值，初始化为2，与调用refCnt()获取的实际值1有差别
     //  在旧的版本中，refCnt引用计数的值每次加1或减1，默认为1，大 于0表示可用，等于0表示已释放。在Netty v4.1.38.Final版本中，
     //  refCnt的初始值为2，每次操作也不同。那么，为何要改成这种设计方 式?有什么好处呢?通过4.4.3小节来解决这个疑问。
+
+    // refCntUpdater 是修改retCnt字段的原子更新器，而refCnt是存储引用计数的字段，注意，当ByteBuf 的引用数为refCnt/2
+    // 因此当refCnt等于1时，引用数为0
+
     @SuppressWarnings("unused")
     private volatile int refCnt = updater.initialValue();
 

@@ -84,6 +84,19 @@ import static io.netty.util.internal.ObjectUtil.checkNotNull;
  *  通过以上代码剖析，对CompositeByteBuf的底层实现有了更进一 步的了解，明白了它的内部是如何处理数据的读/写、如何添加新元素 的。但细心的
  *  读者会发现，虽然Component是ByteBuf的包装对象，但 它并没有像其他派生对象一样调用retain()方法。ByteBuf的引用计数 器并没有任何的改变，
  *  这个问题可以通过解读CompositeByteBuf在 ByteToMessageDecoder解码器中的源码来找到答案。
+ *
+ *
+ *  支持零拷贝的复合类型CompositeByteBuf
+ *
+ *  CompositeByteBuf 也是一个非常典型的ByteBuf ，用来将多个ByteBuf组合在一起， 形成一个逻辑上的ByteBuf ，这点和分片ByteBuf非常类似
+ *  都属于逻辑层面上的避免拷贝， 实现所谓的零复制 。
+ *
+ *  CompositeByteBuf的内部维护了一个可扩容的components 数组，所有的被组合的ByteBuf 被封装为Component数组，对象中缓存了该ByteBuf
+ *  的偏移量adjustment,开始索引offset,结束索引endOffset等。
+ *
+ *
+ *
+ *
  */
 public class CompositeByteBuf extends AbstractReferenceCountedByteBuf implements Iterable<ByteBuf> {
 
@@ -989,9 +1002,14 @@ public class CompositeByteBuf extends AbstractReferenceCountedByteBuf implements
         return c.buf.getByte(c.idx(index));
     }
 
+
+    // 对CompositeByteBuf的读写，需要先在components数组里二分查找对应的索引所在的Component对象，然后对Component对象所包装的ByteBuf 进行读写。
+    // 如下：
     @Override
     protected byte _getByte(int index) {
+        // 确定索引index所在的Component对象
         Component c = findComponent0(index);
+        // 对Component对象所包装的ByteBuf进行读写
         return c.buf.getByte(c.idx(index));
     }
 
@@ -1660,13 +1678,16 @@ public class CompositeByteBuf extends AbstractReferenceCountedByteBuf implements
     }
 
     private Component findComponent0(int offset) {
+        // 先检查最近访问的Component是否满足条件
         Component la = lastAccessed;
         if (la != null && offset >= la.offset && offset < la.endOffset) {
            return la;
         }
+        // 否则二分查找
         return findIt(offset);
     }
 
+    // 二分查找
     private Component findIt(int offset) {
         for (int low = 0, high = componentCount; low <= high;) {
             int mid = low + high >>> 1;

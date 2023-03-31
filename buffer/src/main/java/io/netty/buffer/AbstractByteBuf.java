@@ -93,9 +93,12 @@ public abstract class AbstractByteBuf extends ByteBuf {
      * 解码时，由于消息不完整，无法处理
      * 需要将readerIndex复位
      * 此时需要先为索引做个标记
+     *
+     * 暂存的读指针
      */
     private int markedReaderIndex;
     // 标记写索引
+    // 暂存的写指针
     private int markedWriterIndex;
     // 最大容量
     private int maxCapacity;

@@ -56,6 +56,11 @@ import io.netty.util.ReferenceCounted;
  * 计数告一段落，下面会对Netty的另一种零拷贝方式(组合缓冲区视图 CompositeByteBuf)进行详细剖析。
  *
  *
+ * 我们看到ByteBuf分为两类池化(Pooled)和非池化（Unpooled），非池化的ByteBuf每次新建都会申请新的空间，并且用完即弃，给JVM的垃圾回收带来负担，而池化
+ * 的ByteBuf通过内部栈来保存闲置的对象空间，每次新建ByteBuf的时候，优先向内部的栈申请闲置的对象空间，并且用完之后重新归还给内部栈，从而减少
+ * JVM的垃圾回收的压力 。
+ *
+ *
  */
 public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
     /*
@@ -153,6 +158,7 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
 
     public final T retain(T instance, int increment) {
         // all changes to the raw count are 2x the "real" change - overflow is OK
+        // 将increment扩大为两倍 rawIncrement
         int rawIncrement = checkPositive(increment, "increment") << 1;
         return retain0(instance, increment, rawIncrement);
     }
@@ -160,20 +166,24 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
     // rawIncrement == increment << 1
     // 由duplicate()、slice()衍生的ByteBuf与原对象共享底层的 Buffer，原对象的引用可能需要增加，引用增加的方法为retain0()。
     // retain0()方法为retain()方法的具体实现，其代码解读如下:
+    // 注释已经讲得很明白了，这里再补充一下， 每次调用retain()，都会尝试给refCnt加2，所以确保了refCnt恒为偶数，也就是说当前的引用计数
+    // 为ref Cnt /2 ，这里为什么设计为2而不是递增1，估计是为了位运算更加高效吧，而且实际应用中Integer.MAX_VALU/2也是绰绰有余的。
     private T retain0(T instance, final int increment, final int rawIncrement) {
         // 乐观锁，先获取原值，再增加
+        // 将adjustedIncrements 更新到refCnt，因此refCnt初始化值为2 ，所以恒为偶数
         int oldRef = updater().getAndAdd(instance, rawIncrement);
-        // 如果原值不为偶数，则表示ByteBuf 已经被释放了，无法继续引用
+        // 如果原值不为偶数，则表示ByteBuf 已经被释放了，无法继续引用,直接抛出异常
         if (oldRef != 2 && oldRef != 4 && (oldRef & 1) != 0) {
             throw new IllegalReferenceCountException(0, increment);
         }
         // don't pass 0!
-        // 如果增加后出现溢出
+        // 如果增加后出现溢出，如果oldRef 和 oldRef + rawIncrement 正负异号，则意味着已经溢出
         if ((oldRef <= 0 && oldRef + rawIncrement >= 0)
                 || (oldRef >= 0 && oldRef + rawIncrement < oldRef)) {
             // overflow case
-            // 则回滚并抛出异常
+            // 则回滚并抛出异常 ， 生性溢出则需要回滚adjustedIncrement
             updater().getAndAdd(instance, -rawIncrement);
+            // 然后抛出异常
             throw new IllegalReferenceCountException(realRefCnt(oldRef), increment);
         }
         return instance;
@@ -257,11 +267,14 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
              * 原始值必须是2的倍数，否则状态为已释放，会抛出异常
              */
             int rawCnt = updater().get(instance), realCnt = toLiveRealRefCnt(rawCnt, decrement);
-            // 如果引用次数与当前释放次数相等
+            // 如果引用次数与当前释放次数相等 ，如果decrement == realCnt 意味着需要释放对象
             if (decrement == realCnt) {
                 /**
                  * 尝试最终释放，采用CAS更新refCnt的值为1，若更新成功则返回true
                  * 如果更新失败，说明refCnt的值改变了， 则继续进行循环处理
+                 *
+                 *
+                 * 如果refCnt 为1 ， 意味着实际的引用数为1/2= 0 ，所以需要释放掉
                  */
                 if (tryFinalRelease0(instance, rawCnt)) {
                     return true;
@@ -274,11 +287,15 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
                  * 引用原始值- 2 * 当前释放的次数
                  * 此处释放为非最后一次释放
                  * 因此释放成功后会以返回false
+                 *
+                 *
+                 * 如果当前的引用数realCnt大于decrement，则可以正常更新
                  */
                 if (updater().compareAndSet(instance, rawCnt, rawCnt - (decrement << 1))) {
                     return false;
                 }
             } else {
+                // 如果当前引用数 realCnt 小于decrement ，则抛出引用异常
                 throw new IllegalReferenceCountException(realCnt, -decrement);
             }
             Thread.yield(); // this benefits throughput under high contention
