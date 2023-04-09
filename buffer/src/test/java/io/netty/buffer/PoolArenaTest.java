@@ -34,7 +34,21 @@ public class PoolArenaTest {
             System.out.println(a);
         }*/
         int a =  arena.normalizeCapacity(2);
+
+
+
     }
+
+
+    @Test
+    public void test(){
+        final int DEFAULT_MAX_CAPACITY = Integer.MAX_VALUE;
+        final int CALCULATE_THRESHOLD = 1048576 * 4; // 4 MiB page
+        int c = Integer.MAX_VALUE / 1048576;
+        System.out.println(c);
+
+    }
+
 
     @Test
     public void testNormalizeAlignedCapacity() throws Exception {

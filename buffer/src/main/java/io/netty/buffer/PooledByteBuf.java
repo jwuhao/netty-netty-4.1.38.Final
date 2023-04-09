@@ -204,6 +204,7 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
                     length = newCapacity;
                     return this;
                 }
+                // 当新的容量值 小于 length
             } else if (newCapacity > maxLength >>> 1 &&
                     (maxLength > 512 || newCapacity > maxLength - 16)) {
                 // here newCapacity < length

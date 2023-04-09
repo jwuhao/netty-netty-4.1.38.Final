@@ -373,7 +373,8 @@ public class CompositeByteBuf extends AbstractReferenceCountedByteBuf implements
             throw new IllegalReferenceCountException(0);
         }
         // 获取buf读索引及buf的长度
-        int srcIndex = buf.readerIndex(), len = buf.readableBytes();
+        int srcIndex = buf.readerIndex();
+        int len = buf.readableBytes();
         ByteBuf slice = null;
         // 若是派生的ByteBuf ，则需要通过unwra得到原始的ByteBuf
         // 原始buf的读索引=派生buf读索引+偏移量adjustment
@@ -408,7 +409,10 @@ public class CompositeByteBuf extends AbstractReferenceCountedByteBuf implements
      */
     public CompositeByteBuf addComponents(int cIndex, ByteBuf... buffers) {
         checkNotNull(buffers, "buffers");
+        // 把Buffer加入Component数组中
+        // 并对数组中的元素进行相应的挪动
         addComponents0(false, cIndex, buffers, 0);
+        // 是否需要合并成一个ByteBuf
         consolidateIfNeeded();
         return this;
     }
@@ -419,7 +423,9 @@ public class CompositeByteBuf extends AbstractReferenceCountedByteBuf implements
         // only set ci after we've shifted so that finally block logic is always correct
         int ci = Integer.MAX_VALUE;
         try {
+            // 检查下标是否正常
             checkComponentIndex(cIndex);
+            // 移动component
             shiftComps(cIndex, count); // will increase componentCount
             int nextOffset = cIndex > 0 ? components[cIndex - 1].endOffset : 0;
             for (ci = cIndex; arrOffset < len; arrOffset++, ci++) {
@@ -1179,19 +1185,29 @@ public class CompositeByteBuf extends AbstractReferenceCountedByteBuf implements
 
     @Override
     public CompositeByteBuf getBytes(int index, ByteBuf dst, int dstIndex, int length) {
+        // 检查index,length,dstIndex,dst.capacity()是否合法
         checkDstIndex(index, length, dstIndex, dst.capacity());
         if (length == 0) {
             return this;
         }
-
+        // 根据readerIndex获取components数组的下标
         int i = toComponentIndex0(index);
+        // 由于ByteBuf是逻辑组合
+        // 在读的过程中，一个buf可能是不够的
+        // 需要从多个buf中读取数据，因此需要while循环，直到写满
         while (length > 0) {
             Component c = components[i];
+            // 在每次读数据时，只能读取当前buf的可读字节与length两者中的最小值
             int localLength = Math.min(length, c.endOffset - index);
+            // 从buf中读取localLength字节到dst中
             c.buf.getBytes(c.idx(index), dst, dstIndex, localLength);
+            // 其读取索引值需要增加localLength
             index += localLength;
+            // 目标buf的写索引也需要进行相应的增加
             dstIndex += localLength;
+            // 需要对字节进行相应的调整
             length -= localLength;
+            // components数组的下标也要向上移一位
             i ++;
         }
         return this;
@@ -1889,7 +1905,7 @@ public class CompositeByteBuf extends AbstractReferenceCountedByteBuf implements
         if (firstComponentId == 0) {
             return this; // Nothing to discard
         }
-        // 最后一次访问时的子Buffer,若元素都被释放了，则黑窝la
+        // 最后一次访问时的子Buffer,若元素都被释放了，则置空它
         Component la = lastAccessed;
         if (la != null && la.endOffset <= readerIndex) {
             lastAccessed = null;

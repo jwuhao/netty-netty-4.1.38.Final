@@ -223,9 +223,10 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
          * 当rawCnt不等于2时，说明还有其他地方引用了此对象
          * 调用nonFinalRelease0()方法，尝试采用CAS使refCnt的值减2
          */
-        int rawCnt = nonVolatileRawCnt(instance);
-        return rawCnt == 2 ? tryFinalRelease0(instance, 2) || retryRelease0(instance, 1)
-                : nonFinalRelease0(instance, 1, rawCnt, toLiveRealRefCnt(rawCnt, 1));
+        int rawCnt = nonVolatileRawCnt(instance);                              // 非volatile操作
+        return rawCnt == 2 ? tryFinalRelease0(instance, 2)       // 最后一次释放
+                || retryRelease0(instance, 1)                       // 非最后一次释放
+                : nonFinalRelease0(instance, 1, rawCnt, toLiveRealRefCnt(rawCnt, 1));       // 非最后一次释放
     }
 
     public final boolean release(T instance, int decrement) {
@@ -237,7 +238,7 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
 
     // 采用CAS最终释放，将refCnt的设置为1
     private boolean tryFinalRelease0(T instance, int expectRawCnt) {
-        return updater().compareAndSet(instance, expectRawCnt, 1); // any odd number will work
+        return updater().compareAndSet(instance, expectRawCnt, 1); // any odd number will work 设置为基数
     }
 
     /**
@@ -266,7 +267,8 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
              * 并通过toLiveRealRefCnt()方法将其转化成真正的引用次数
              * 原始值必须是2的倍数，否则状态为已释放，会抛出异常
              */
-            int rawCnt = updater().get(instance), realCnt = toLiveRealRefCnt(rawCnt, decrement);
+            int rawCnt = updater().get(instance);
+            int realCnt = toLiveRealRefCnt(rawCnt, decrement);
             // 如果引用次数与当前释放次数相等 ，如果decrement == realCnt 意味着需要释放对象
             if (decrement == realCnt) {
                 /**

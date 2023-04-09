@@ -281,7 +281,11 @@ public abstract class AbstractByteBuf extends ByteBuf {
         }
         return this;
     }
-
+    // 当对缓存进行读操作，由于某种原因，可能需要对之前的操作进行回滚。ByteBuf提供了：
+    // a，markReaderIndex：将当前的readerIndex备份到markedReaderIndex中；
+    // b，resetReaderIndex：将当前的readerIndex设置为markedReaderIndex；
+    // c，markWriterIndex：将当前的writerIndex备份到markedWriterIndex；
+    // d，resetWriterIndex：将当前的writerIndex设置为markedWriterIndex。
     protected final void adjustMarkers(int decrement) {
         int markedReaderIndex = this.markedReaderIndex;
         if (markedReaderIndex <= decrement) {

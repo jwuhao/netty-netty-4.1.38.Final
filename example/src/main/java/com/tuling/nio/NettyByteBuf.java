@@ -9,6 +9,7 @@ import javax.naming.ldap.LdapName;
 public class NettyByteBuf {
 
 
+
     public static void main(String[] args) {
         // 创建byteBuf 对象，该对象内部包含了一个字节数组byte[10]
         // 通过readerindex和writerIndex和capacity，将buffer分成三个区域
@@ -61,10 +62,6 @@ public class NettyByteBuf {
             // 范围读取
             System.out.println(bytebuf2.getCharSequence(0,6,CharsetUtil.UTF_8));
             System.out.println(bytebuf2.getCharSequence(6,6,CharsetUtil.UTF_8));
-
-
         }
-
-
     }
 }

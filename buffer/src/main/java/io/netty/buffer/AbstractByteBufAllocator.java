@@ -35,7 +35,6 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
     static {
         ResourceLeakDetector.addExclusions(AbstractByteBufAllocator.class, "toLeakAwareBuffer");
     }
-
     // Netty的内存泄漏检测机制有以下4种检测级别。
     // 内存泄漏检测入口
     // ByteBuf 在分配后需要次给内存泄漏检测处理
@@ -151,7 +150,6 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
         }
         return heapBuffer(initialCapacity);
     }
-
     @Override
     public ByteBuf ioBuffer(int initialCapacity, int maxCapacity) {
         if (PlatformDependent.hasUnsafe() || isDirectBufferPooled()) {
@@ -159,12 +157,10 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
         }
         return heapBuffer(initialCapacity, maxCapacity);
     }
-
     @Override
     public ByteBuf heapBuffer() {
         return heapBuffer(DEFAULT_INITIAL_CAPACITY, DEFAULT_MAX_CAPACITY);
     }
-
     @Override
     public ByteBuf heapBuffer(int initialCapacity) {
         return heapBuffer(initialCapacity, DEFAULT_MAX_CAPACITY);
