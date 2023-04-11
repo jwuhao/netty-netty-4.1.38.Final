@@ -16,6 +16,7 @@
 package io.netty.channel;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static io.netty.util.internal.ObjectUtil.checkPositive;
@@ -80,6 +81,7 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
         for (int i = 0; i < SIZE_TABLE.length; i++) {
             SIZE_TABLE[i] = sizeTable.get(i);
         }
+        System.out.println(Arrays.toString(SIZE_TABLE));
         System.out.println("================");
     }
 
@@ -135,6 +137,7 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
             // This helps adjust more quickly when large amounts of data is pending and can avoid going back to
             // the selector to check for more data. Going back to the selector can add significant latency for large
             // data transfers.
+            //  如果上 一次读循环将缓冲区填充满了，那么预测的字节数会变大
             if (bytes == attemptedBytesRead()) {
                 record(bytes);
             }
@@ -146,10 +149,11 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
             return nextReceiveBufferSize;
         }
 
-        // 该方法的参数是一次读取操作中实际读取到的数据大小，将其与nextReceiveBufferSize 进行比较，如果实际字节数actualReadBytes大于等于该值，则立即更新nextReceiveBufferSize ，
-        // 其更新后的值与INDEX_INCREMENT有关。INDEX_INCREMENT为默认常量，值为4。也就是说在扩容时会一次性增大多一些，以保证下次有足够空间可以接收数据。而相对扩容的策略，
-        // 缩容策略则实际保守些，常量为INDEX_INCREMENT，值为1，同样也是进行对比， 但不同的是，若实际字节小于所用nextReceiveBufferSize，并不会立马进行大小调整，
-        // 而是先把 decreaseNow 设置为true，如果下次仍然小于，则才会减少nextReceiveBufferSize的大小
+        // 该方法的参数是一次读取操作中实际读取到的数据大小，将其与nextReceiveBufferSize 进行比较，如果实际字节数actualReadBytes大于等于该值
+        // ，则立即更新nextReceiveBufferSize ，其更新后的值与INDEX_INCREMENT有关。INDEX_INCREMENT为默认常量，值为4。
+        // 也就是说在扩容时会一次性增大多一些，以保证下次有足够空间可以接收数据。而相对扩容的策略，
+        // 缩容策略则实际保守些，常量为INDEX_INCREMENT，值为1，同样也是进行对比， 但不同的是，若实际字节小于所用nextReceiveBufferSize，
+        // 并不会立马进行大小调整，而是先把 decreaseNow 设置为true，如果下次仍然小于，则才会减少nextReceiveBufferSize的大小
         private void record(int actualReadBytes) {
             if (actualReadBytes <= SIZE_TABLE[max(0, index - INDEX_DECREMENT - 1)]) {
                 if (decreaseNow) {                      // 若减少标识decreaseNow连续两次为true, 则说明下次读取字节数需要减少SIZE_TABLE下标减1
