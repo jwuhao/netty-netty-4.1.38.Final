@@ -219,13 +219,17 @@ public class ResourceLeakDetector<T> {
     }
 
     /** the collection of active resources */
+    // 活跃的资源集合
     private final Set<DefaultResourceLeak<?>> allLeaks =
             Collections.newSetFromMap(new ConcurrentHashMap<DefaultResourceLeak<?>, Boolean>());
-
+    // ByteBuf被检测后，会创建一个弱引用指向它，GC时，如果ByteBuf没有强引用被回收
+    // 则JVM 会将WeakReference放入到refQueue中，通过refQueue就可以判断是否发生了内存泄漏
     private final ReferenceQueue<Object> refQueue = new ReferenceQueue<Object>();
+    // 已经报告的内存泄漏对象集合
     private final ConcurrentMap<String, Boolean> reportedLeaks = PlatformDependent.newConcurrentHashMap();
 
     private final String resourceType;
+    // 采样的间隔，默认为128
     private final int samplingInterval;
 
     /**
@@ -343,6 +347,7 @@ public class ResourceLeakDetector<T> {
 
     private void reportLeak() {
         if (!logger.isErrorEnabled()) {
+            // 不需要报告 ，从refQueue中取出引用被clear掉了。
             clearRefQueue();
             return;
         }
@@ -353,6 +358,7 @@ public class ResourceLeakDetector<T> {
             @SuppressWarnings("unchecked")
             DefaultResourceLeak ref = (DefaultResourceLeak) refQueue.poll();
             if (ref == null) {
+                // 没有泄漏对象，则退出循环
                 break;
             }
 
@@ -365,6 +371,7 @@ public class ResourceLeakDetector<T> {
             String records = ref.toString();
             // 不再输出曾经输出过的泄漏记录
             if (reportedLeaks.putIfAbsent(records, Boolean.TRUE) == null) {
+                // 调用logger.error()报告资源泄漏的情况
                 if (records.isEmpty()) {
                     reportUntracedLeak(resourceType);
                 } else {
@@ -426,8 +433,9 @@ public class ResourceLeakDetector<T> {
         private volatile Record head;
         @SuppressWarnings("unused")
         private volatile int droppedRecords;
-
+        // 活跃的资源集合
         private final Set<DefaultResourceLeak<?>> allLeaks;
+        // 追踪对象的一致性哈希码，确保关闭对象和追踪对象一致
         private final int trackedHash;
 
         DefaultResourceLeak(
@@ -441,9 +449,12 @@ public class ResourceLeakDetector<T> {
             // Store the hash of the tracked object to later assert it in the close(...) method.
             // It's important that we not store a reference to the referent as this would disallow it from
             // be collected via the WeakReference.
+            // 计算追踪对象的一致性哈希，close时判断追踪对象和关闭对象是同一个
             trackedHash = System.identityHashCode(referent);
+            // 将当前DefaultResourceLeak加入到活跃资源集合中
             allLeaks.add(this);
             // Create a new Record so we always have the creation stacktrace included.
+            // 记录追踪的堆栈信息，TraceRecord.BOTTOM代表链尾
             headUpdater.set(this, new Record(Record.BOTTOM));
             this.allLeaks = allLeaks;
         }
@@ -684,11 +695,16 @@ public class ResourceLeakDetector<T> {
         private static final long serialVersionUID = 6065153674892850720L;
 
         private static final Record BOTTOM = new Record();
-
+        // 额外的提示信息
         private final String hintString;
+        // 下一个节点
         private final Record next;
         private final int pos;
 
+        /**
+         * @param next 下一个节点
+         * @param hint 额外的提示信息
+         */
         Record(Record next, Object hint) {
             // This needs to be generated even if toString() is never called as it may change later on.
             hintString = hint instanceof ResourceLeakHint ? ((ResourceLeakHint) hint).toHintString() : hint.toString();
