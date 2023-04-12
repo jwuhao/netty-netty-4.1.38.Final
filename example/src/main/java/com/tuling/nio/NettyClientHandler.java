@@ -12,7 +12,16 @@ public class NettyClientHandler extends ChannelInboundHandlerAdapter {
     // 当客户端连接服务器完成就会触发这个方法
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        ByteBuf buf = Unpooled.copiedBuffer("hello server", CharsetUtil.UTF_8);
+
+
+
+
+        StringBuffer sb = new StringBuffer();
+        for(int i = 0 ;i < 1029;i ++){
+            sb.append("a");
+        }
+        ByteBuf buf = Unpooled.copiedBuffer(sb.toString(), CharsetUtil.UTF_8);
+
         ctx.writeAndFlush(buf);
     }
 
