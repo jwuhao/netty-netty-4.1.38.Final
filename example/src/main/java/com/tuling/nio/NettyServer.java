@@ -28,7 +28,9 @@ public class NettyServer {
 
                         @Override
                         protected void initChannel(SocketChannel ch) throws Exception {
+                            //ch.config().setRecvByteBufAllocator(new FixedRecvByteBufAllocator(2056));
                             // 对workerGroup 的SocketChannel设置处理器
+                            ch.pipeline().addLast(new NettyServerHandler2());
                             ch.pipeline().addLast(new NettyServerHandler());
                         }
                     });
