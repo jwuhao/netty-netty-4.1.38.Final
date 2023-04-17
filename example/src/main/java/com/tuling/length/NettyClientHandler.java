@@ -1,4 +1,4 @@
-package com.tuling.nio;
+package com.tuling.length;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -23,13 +23,9 @@ public class NettyClientHandler extends ChannelInboundHandlerAdapter {
 
         System.out.println("midbytes   = " + midbytes.length);
 
-
         ByteBuf buf = Unpooled.copiedBuffer("", CharsetUtil.UTF_8);
-
-        // buf.writeInt(midbytes.length);
-
+        buf.writeInt(midbytes.length);
         buf.writeBytes(sb.toString().getBytes("utf-8"));
-
         ctx.writeAndFlush(buf);
     }
 

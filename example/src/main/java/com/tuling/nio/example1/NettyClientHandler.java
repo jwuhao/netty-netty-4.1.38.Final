@@ -1,4 +1,4 @@
-package com.tuling.nio;
+package com.tuling.nio.example1;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;

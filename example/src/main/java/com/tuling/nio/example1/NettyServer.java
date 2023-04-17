@@ -1,4 +1,4 @@
-package com.tuling.nio;
+package com.tuling.nio.example1;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;

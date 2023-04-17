@@ -1,10 +1,11 @@
-package com.tuling.nio;
+package com.tuling.nio.length.field.based.frame.decoder.example1;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.CharsetUtil;
+import org.bouncycastle.crypto.generators.HKDFBytesGenerator;
 
 
 // 自定义Handler需要继承netty 规定好的某个HandlerAdapter(规范)
@@ -20,12 +21,13 @@ public class NettyServerHandler extends ChannelInboundHandlerAdapter {
      */
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        //Channel channel = ctx.channel();
-        //ChannelPipeline pipeline = ctx.pipeline(); //本质是一个双向链接, 出站入站
-        //将 msg 转成一个 ByteBuf，类似NIO 的 ByteBuffer
+        System.out.println("服务器读取的线程 ：" + Thread.currentThread().getName());
         ByteBuf buf = (ByteBuf) msg;
-        System.out.println("收到客户端的消息:" + buf.toString(CharsetUtil.UTF_8));
-        ctx.fireChannelRead(msg);
+        int length = buf.readInt();
+        System.out.println("传送的数据长度为" + length);
+        byte[] bytes = new byte[length];
+        buf.readBytes(bytes);
+        System.out.println("客户端发送的消息是： " + new String(bytes, "utf-8"));
     }
 
 

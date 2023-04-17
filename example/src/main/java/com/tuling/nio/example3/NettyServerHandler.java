@@ -1,4 +1,4 @@
-package com.tuling.nio;
+package com.tuling.nio.example3;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -20,12 +20,8 @@ public class NettyServerHandler extends ChannelInboundHandlerAdapter {
      */
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        //Channel channel = ctx.channel();
-        //ChannelPipeline pipeline = ctx.pipeline(); //本质是一个双向链接, 出站入站
-        //将 msg 转成一个 ByteBuf，类似NIO 的 ByteBuffer
-        ByteBuf buf = (ByteBuf) msg;
-        System.out.println("收到客户端的消息:" + buf.toString(CharsetUtil.UTF_8));
-        ctx.fireChannelRead(msg);
+        System.out.println("服务器读取的线程 ：" + Thread.currentThread().getName());
+        System.out.println("客户端发送的消息是： " + msg);
     }
 
 

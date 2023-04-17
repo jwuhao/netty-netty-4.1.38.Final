@@ -1,4 +1,4 @@
-package com.tuling.nio;
+package com.tuling.length;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
@@ -28,11 +28,15 @@ public class NettyServer {
 
                         @Override
                         protected void initChannel(SocketChannel ch) throws Exception {
-                            ch.config().setRecvByteBufAllocator(new FixedRecvByteBufAllocator(2056));
                             // 对workerGroup 的SocketChannel设置处理器
-                            //ch.pipeline().addLast(new NettyServerHandler2());
+                            // maxFrameLength : 发送的数据包最大长度， 发送数据包的最大长度，例如1024，表示一个数据包最多可发送1024个字节
+                            // lengthFieldOffset: 长度字段的偏移量， 指的是长度字段位于数据包内部字节数组中的下标值
+                            // lengthFieldLength: 长度字段自己占用的字节数，如果长度字段是一个int整数，则为4，如果长度字段是一个short整数，则为2
+                            // lengthAdjustment: 长度字段的偏移量矫正， 这个参数最为难懂，在传输协议比较复杂的情况下，例如包含了长度字段，协议版本号， 魔数等
+                            //                  那么解码时，就需要进行长度字段的矫正，长度矫正值的计算公式为：内容字段偏移量 - 长度字段偏移量 - 长度字段的字节数
+                            //
+                            ch.pipeline().addLast(new NettyServerHandler2(65535, 0 , 4 ));
                             ch.pipeline().addLast(new NettyServerHandler());
-                            //ch.pipeline().addLast(new NettyServerHandler3());
                         }
                     });
             System.out.println("netty server start ....");

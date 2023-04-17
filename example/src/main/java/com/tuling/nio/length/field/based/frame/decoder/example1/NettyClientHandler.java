@@ -1,4 +1,4 @@
-package com.tuling.nio;
+package com.tuling.nio.length.field.based.frame.decoder.example1;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -12,24 +12,13 @@ public class NettyClientHandler extends ChannelInboundHandlerAdapter {
     // 当客户端连接服务器完成就会触发这个方法
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        StringBuffer sb = new StringBuffer();
-        for(int i = 0 ;i < 1023;i ++){
-            sb.append("a");
-        }
-        sb.append("中");
-        sb.append("bbbb");
-        String sbString = sb.toString();
-        byte[] midbytes = sbString.getBytes("UTF8");
 
-        System.out.println("midbytes   = " + midbytes.length);
-
+        byte[] midbytes = "HELLO, WORLD".getBytes("UTF8");
 
         ByteBuf buf = Unpooled.copiedBuffer("", CharsetUtil.UTF_8);
 
-        // buf.writeInt(midbytes.length);
-
-        buf.writeBytes(sb.toString().getBytes("utf-8"));
-
+        buf.writeInt(midbytes.length);
+        buf.writeBytes(midbytes);
         ctx.writeAndFlush(buf);
     }
 
