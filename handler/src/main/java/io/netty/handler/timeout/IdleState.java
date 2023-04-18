@@ -25,13 +25,13 @@ public enum IdleState {
     /**
      * No data was received for a while.
      */
-    READER_IDLE,
+    READER_IDLE,                        // 读超时
     /**
      * No data was sent for a while.
      */
-    WRITER_IDLE,
+    WRITER_IDLE,                    // 写超时
     /**
      * No data was either received or sent for a while.
      */
-    ALL_IDLE
+    ALL_IDLE                    //数据交互超时
 }

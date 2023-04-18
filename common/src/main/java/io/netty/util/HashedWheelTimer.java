@@ -500,6 +500,7 @@ public class HashedWheelTimer implements Timer {
         if (Thread.currentThread() == workerThread) {
             throw new IllegalStateException(
                     HashedWheelTimer.class.getSimpleName() +
+
                             ".stop() cannot be called from " +
                             TimerTask.class.getSimpleName());
         }

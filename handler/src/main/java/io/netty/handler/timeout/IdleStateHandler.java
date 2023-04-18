@@ -94,6 +94,8 @@ import java.util.concurrent.TimeUnit;
  *
  * @see ReadTimeoutHandler
  * @see WriteTimeoutHandler
+ * 注意到此Handler没有Sharable注解，这是因为每个连接的超时时间是特有的即每个连接有独立的状态，所以不能标注Sharable注解。
+ * 继承自ChannelDuplexHandler是因为既要处理读超时又要处理写超时。
  */
 public class IdleStateHandler extends ChannelDuplexHandler {
     private static final long MIN_TIMEOUT_NANOS = TimeUnit.MILLISECONDS.toNanos(1);
@@ -108,13 +110,13 @@ public class IdleStateHandler extends ChannelDuplexHandler {
     };
 
     private final boolean observeOutput;
-    private final long readerIdleTimeNanos;
-    private final long writerIdleTimeNanos;
+    private final long readerIdleTimeNanos;                 // 用户配置的读超时时间
+    private final long writerIdleTimeNanos;                 // 用户配置的写超时时间
     private final long allIdleTimeNanos;
 
-    private ScheduledFuture<?> readerIdleTimeout;
-    private long lastReadTime;
-    private boolean firstReaderIdleEvent = true;
+    private ScheduledFuture<?> readerIdleTimeout;           // 判定超时调度任务的Future
+    private long lastReadTime;                              // 最近一次读取数据的时间
+    private boolean firstReaderIdleEvent = true;            // 是否第一次读超时事件
 
     private ScheduledFuture<?> writerIdleTimeout;
     private long lastWriteTime;
@@ -123,8 +125,8 @@ public class IdleStateHandler extends ChannelDuplexHandler {
     private ScheduledFuture<?> allIdleTimeout;
     private boolean firstAllIdleEvent = true;
 
-    private byte state; // 0 - none, 1 - initialized, 2 - destroyed
-    private boolean reading;
+    private byte state; // 0 - none, 1 - initialized, 2 - destroyed   0 无关 ， 1 初始化完成 ， 2 已被销毁
+    private boolean reading;                    // 是否正在读取 。
 
     private long lastChangeCheckTimeStamp;
     private int lastMessageHashCode;
@@ -310,14 +312,15 @@ public class IdleStateHandler extends ChannelDuplexHandler {
         // Avoid the case where destroy() is called before scheduling timeouts.
         // See: https://github.com/netty/netty/issues/143
         switch (state) {
-        case 1:
-        case 2:
+        case 1:                                 // 初始化进行中或者已经完成
+        case 2:                                 // 销毁进行中或者已经完成
             return;
         }
 
         state = 1;
         initOutputChanged(ctx);
-
+        // 初始化的工作较为简单，设定最近一次读取时间lastReadTime为当前系统时间，然后在用户设置的读超时时间readerIdleTimeNanos截止时，
+        // 执行一个ReaderIdleTimeoutTask进行检测。
         lastReadTime = lastWriteTime = ticksInNanos();
         if (readerIdleTimeNanos > 0) {
             readerIdleTimeout = schedule(ctx, new ReaderIdleTimeoutTask(ctx),
@@ -351,6 +354,7 @@ public class IdleStateHandler extends ChannelDuplexHandler {
         state = 2;
 
         if (readerIdleTimeout != null) {
+            // 取消调试任务，并置为null
             readerIdleTimeout.cancel(false);
             readerIdleTimeout = null;
         }
@@ -492,9 +496,10 @@ public class IdleStateHandler extends ChannelDuplexHandler {
             if (!reading) {
                 nextDelay -= ticksInNanos() - lastReadTime;
             }
-
+            // nextDelay<=0 说明在设置的超时时间内没有读取数据
             if (nextDelay <= 0) {
                 // Reader is idle - set a new timeout and notify the callback.
+                //  超时时间已到，则再次调度该任务本身
                 readerIdleTimeout = schedule(ctx, this, readerIdleTimeNanos, TimeUnit.NANOSECONDS);
 
                 boolean first = firstReaderIdleEvent;
@@ -502,12 +507,13 @@ public class IdleStateHandler extends ChannelDuplexHandler {
 
                 try {
                     IdleStateEvent event = newIdleStateEvent(IdleState.READER_IDLE, first);
-                    channelIdle(ctx, event);
+                    channelIdle(ctx, event);                    // 模板方法处理
                 } catch (Throwable t) {
                     ctx.fireExceptionCaught(t);
                 }
             } else {
                 // Read occurred before the timeout - set a new timeout with shorter delay.
+                // 注意此处的nextDelay值，会跟随着lastReadTime刷新
                 readerIdleTimeout = schedule(ctx, this, nextDelay, TimeUnit.NANOSECONDS);
             }
         }
