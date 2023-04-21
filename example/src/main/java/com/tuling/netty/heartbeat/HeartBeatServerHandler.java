@@ -8,6 +8,14 @@ public class HeartBeatServerHandler extends SimpleChannelInboundHandler<String> 
 
     int readIdleTimes = 0;
 
+
+    @Override
+    public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+        super.channelReadComplete(ctx);
+        readIdleTimes = 0 ;
+    }
+
+
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String s) throws Exception {
         System.out.println(" ====== > [server] message received : " + s);

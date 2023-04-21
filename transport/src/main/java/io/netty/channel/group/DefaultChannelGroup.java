@@ -52,6 +52,9 @@ public class DefaultChannelGroup extends AbstractSet<Channel> implements Channel
             remove(future.channel());
         }
     };
+
+
+
     private final VoidChannelGroupFuture voidFuture = new VoidChannelGroupFuture(this);
     private final boolean stayClosed;
     private volatile boolean closed;

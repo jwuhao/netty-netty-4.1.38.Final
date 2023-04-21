@@ -512,6 +512,7 @@ public class IdleStateHandler extends ChannelDuplexHandler {
                     ctx.fireExceptionCaught(t);
                 }
             } else {
+                // 如果正在读取中
                 // Read occurred before the timeout - set a new timeout with shorter delay.
                 // 注意此处的nextDelay值，会跟随着lastReadTime刷新
                 readerIdleTimeout = schedule(ctx, this, nextDelay, TimeUnit.NANOSECONDS);

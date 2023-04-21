@@ -74,6 +74,7 @@ public class LifeCycleInBoundHandler extends ChannelInboundHandlerAdapter {
         super.handlerAdded(ctx);
     }
 
+     // handlerRemoved： 对应handlerAdded，将handler从该channel的pipeline移除后的回调方法。
     @Override
     public void handlerRemoved(ChannelHandlerContext ctx) 
             throws Exception {

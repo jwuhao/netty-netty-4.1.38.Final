@@ -52,7 +52,7 @@ import static java.lang.Math.min;
  *
 
  */
-public final class ChannelOutboundBuffer {
+public class ChannelOutboundBuffer {
     // Assuming a 64-bit JVM:
     //  - 16 bytes object header
     //  - 8 reference fields
@@ -151,7 +151,7 @@ public final class ChannelOutboundBuffer {
 
         // increment pending bytes after adding message to the unflushed arrays.
         // See https://github.com/netty/netty/issues/1619
-        // 修改通过缓存总数据的大小，叵缓存总数据大小超过了高水位 ， 则会触发 fireChannelWritabilityChanged 事件，进入背压
+        // 修改通过缓存总数据的大小，若缓存总数据大小超过了高水位 ， 则会触发 fireChannelWritabilityChanged 事件，进入背压
         incrementPendingOutboundBytes(entry.pendingSize, false);
     }
 
@@ -482,6 +482,7 @@ public final class ChannelOutboundBuffer {
                 // 若可发送的字节数大于 0 则继续：否则跳过
                 if (readableBytes > 0) {
                     // 累计发送字节数不能大于 maxBytes
+                    // maxBytes  < nioBufferSize + readableBytes ,本次发送的字节 + 累计发送的字节是否大于最大字节限制
                     if (maxBytes - readableBytes < nioBufferSize && nioBufferCount != 0) {
                         // If the nioBufferSize + readableBytes will overflow maxBytes, and there is at least one entry
                         // we stop populate the ByteBuffer array. This is done for 2 reasons:

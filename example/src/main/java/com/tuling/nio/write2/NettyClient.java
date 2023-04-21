@@ -1,4 +1,4 @@
-package com.tuling.nio;
+package com.tuling.nio.write2;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelFuture;
@@ -32,7 +32,6 @@ public class NettyClient {
             ChannelFuture channelFuture = bootstrap.connect("127.0.0.1",9000).sync();
             // 对关闭通道进行监听
             channelFuture.channel().closeFuture().sync();
-
         }catch (Exception e ){
             e.printStackTrace();
         }finally {

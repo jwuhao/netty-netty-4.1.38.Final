@@ -1,4 +1,4 @@
-package com.tuling.nio;
+package com.tuling.nio.base;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -8,7 +8,7 @@ import io.netty.util.CharsetUtil;
 
 
 // 自定义Handler需要继承netty 规定好的某个HandlerAdapter(规范)
-public class NettyServerHandler extends ChannelInboundHandlerAdapter {
+public class NettyServerHandler3 extends ChannelInboundHandlerAdapter {
 
 
     /**
@@ -24,8 +24,7 @@ public class NettyServerHandler extends ChannelInboundHandlerAdapter {
         //ChannelPipeline pipeline = ctx.pipeline(); //本质是一个双向链接, 出站入站
         //将 msg 转成一个 ByteBuf，类似NIO 的 ByteBuffer
         ByteBuf buf = (ByteBuf) msg;
-        System.out.println("收到客户端的消息:" + buf.toString(CharsetUtil.UTF_8));
-        ctx.fireChannelRead(msg);
+        System.out.println("NettyServerHandler3 收到 收到客户端的消息:" + buf.toString(CharsetUtil.UTF_8));
     }
 
 
