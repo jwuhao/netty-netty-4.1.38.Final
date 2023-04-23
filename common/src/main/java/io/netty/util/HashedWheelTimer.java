@@ -619,13 +619,13 @@ public class HashedWheelTimer implements Timer {
             startTimeInitialized.countDown();
 
             do {
-                // 获取下一刻度时间轮总体的执行时间，录这个时间与时间轮启动时间和大于当前时间时， 线程会睡眠到这个时间点
+                // 获取下一刻度时间轮总体的执行时间，记录这个时间与时间轮启动时间和大于当前时间时， 线程会睡眠到这个时间点
                 final long deadline = waitForNextTick();
                 if (deadline > 0) {
                     int idx = (int) (tick & mask);      // 获取刻度的编号，即wheel 数组的下标
                     processCancelledTasks();                // 先处理需要取消的任务
                     HashedWheelBucket bucket = wheel[idx];        // 获取刻度所在的缓存链表
-                    transferTimeoutsToBuckets();                // 把所有的样报增加的定时任务检测任务加入wheel数组的缓存链表中
+                    transferTimeoutsToBuckets();                // 把新增加的定时任务加入wheel数组的缓存链表中
                     bucket.expireTimeouts(deadline);                        // 循环执行刻度所在的缓存链表
                     tick++;             // 执行完后，指针才正式跳动
                 }
@@ -660,8 +660,8 @@ public class HashedWheelTimer implements Timer {
                     // Was cancelled in the meantime.
                     continue;
                 }
-                // 每个时间轮启动都会记录其启动时间，同时，每个定时任务 都有其确定的执行时间，用这个执行时间减去时间轮的启动时间，
-                // 再 除以刻度的持续时长，就能获取这个定时任务需要指针走过多少刻度 才运行，标注为calculated。
+                // 每个时间轮启动都会记录其启动时间，同时，每个定时任务都有其确定的执行开始时间，用这个执行开始时间减去时间轮的启动时间，
+                // 再除以刻度的持续时长，就能获取这个定时任务需要指针走过多少刻度才运行，标注为calculated。
                 long calculated = timeout.deadline / tickDuration;
                 timeout.remainingRounds = (calculated - tick) / wheel.length;
 
@@ -701,7 +701,7 @@ public class HashedWheelTimer implements Timer {
 
             for (;;) {
                 final long currentTime = System.nanoTime() - startTime;         // 当前时间 - 启动时间
-                // 计算需要睡眠的毫秒时间 ， 由于在将纳秒frqo毫秒时需要除以1000000，因此需要加上999999，以防赴丢失尾数，任务被提前执行
+                // 计算需要睡眠的毫秒时间 ， 由于在将纳秒转化毫秒时需要除以1000000，因此需要加上999999，以防赴丢失尾数，任务被提前执行
                 long sleepTimeMs = (deadline - currentTime + 999999) / 1000000;
 
                 if (sleepTimeMs <= 0) {                     // 当睡眠时间小于，且 等于Long.MiN_VALUE时，直跳过此刻度，否则不睡眠，直接执行任务

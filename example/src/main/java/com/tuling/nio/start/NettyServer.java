@@ -39,6 +39,7 @@ public class NettyServer {
             // 给注册监听器，监听我们关心的事件
             cf.addListener(new ChannelFutureListener() {
                 @Override
+
                 public void operationComplete(ChannelFuture future) throws Exception {
                     if (cf.isSuccess()) {
                         System.out.println("监听端口9000成功");
